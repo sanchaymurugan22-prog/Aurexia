@@ -1,0 +1,337 @@
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import '../App.css';
+import logo from '../assets/logo.jpg';
+import mainBg from '../assets/splash.jpg';
+
+const BookACounsellor = () => {
+    const navigate = useNavigate();
+    const [selectedCountry, setSelectedCountry] = useState('');
+    const [selectedCity, setSelectedCity] = useState('');
+    const [showResults, setShowResults] = useState(false);
+    const [filteredCounsellors, setFilteredCounsellors] = useState([]);
+
+    const locationData = {
+        'India': ['Delhi', 'Mumbai', 'Bangalore', 'Hyderabad', 'Chennai', 'Kolkata', 'Pune', 'Ahmedabad'],
+        'USA': ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia'],
+        'UK': ['London', 'Birmingham', 'Manchester', 'Glasgow', 'Liverpool'],
+        'Australia': ['Sydney', 'Melbourne', 'Brisbane', 'Perth', 'Adelaide'],
+        'Canada': ['Toronto', 'Vancouver', 'Montreal', 'Calgary', 'Ottawa']
+    };
+
+    const mockCounsellors = [
+        // India - Delhi
+        { id: 1, name: 'Dr. Sarah Wilson', specialization: 'Clinical Psychologist', experience: '12 years', rating: 4.9, education: 'PhD in Clinical Psychology, Harvard University', hospital: 'Apollo Hospital Delhi', patients: 850, city: 'delhi', image: 'https://images.unsplash.com/photo-1559839734-2b71f1e3c770?auto=format&fit=crop&q=80&w=200' },
+        { id: 4, name: 'Dr. David Smith', specialization: 'Cognitive Behavioral Therapist', experience: '15 years', rating: 5.0, education: 'MD Psychiatry, Stanford University', hospital: 'Max Super Specialty Hospital', patients: 1200, city: 'delhi', image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=200' },
+        { id: 7, name: 'Priya Sharma', specialization: 'Child Psychologist', experience: '9 years', rating: 4.8, education: 'PhD Child Psychology, AIIMS Delhi', hospital: 'Fortis Hospital Delhi', patients: 650, city: 'delhi', image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200' },
+        { id: 9, name: 'Anil Kapoor', specialization: 'Adolescent Therapist', experience: '11 years', rating: 4.7, education: 'MSc Psychology, Delhi University', hospital: 'Indraprastha Apollo Hospital', patients: 720, city: 'delhi', image: 'https://images.unsplash.com/photo-1566753323558-f4e0952af115?auto=format&fit=crop&q=80&w=200' },
+
+        // India - Mumbai
+        { id: 2, name: 'Michael Chen', specialization: 'Anxiety & Stress Specialist', experience: '8 years', rating: 4.8, education: 'PhD Clinical Psychology, Oxford University', hospital: 'Breach Candy Hospital', patients: 580, city: 'mumbai', image: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&q=80&w=200' },
+        { id: 10, name: 'Vikram Seth', specialization: 'Relationship Expert', experience: '14 years', rating: 4.9, education: 'MD Psychiatry, Mumbai University', hospital: 'Lilavati Hospital', patients: 950, city: 'mumbai', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
+        { id: 11, name: 'Sonia Gupta', specialization: 'Trauma Specialist', experience: '7 years', rating: 4.6, education: 'MSc Trauma Counseling, TISS Mumbai', hospital: 'Kokilaben Hospital', patients: 420, city: 'mumbai', image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=200' },
+
+        // India - Bangalore
+        { id: 3, name: 'Aisha Rahman', specialization: 'Family Therapist', experience: '10 years', rating: 4.7, education: 'PhD Family Therapy, Cambridge University', hospital: 'Manipal Hospital Bangalore', patients: 680, city: 'bangalore', image: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&q=80&w=200' },
+        { id: 12, name: 'Rahul Varma', specialization: 'Depression Specialist', experience: '13 years', rating: 4.8, education: 'MD Psychiatry, NIMHANS Bangalore', hospital: 'Columbia Asia Hospital', patients: 890, city: 'bangalore', image: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=200' },
+        { id: 13, name: 'Kavita Rao', specialization: 'Holistic Wellness Coach', experience: '5 years', rating: 4.5, education: 'MSc Holistic Health, Bangalore University', hospital: 'Apollo Hospital Bangalore', patients: 380, city: 'bangalore', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200' },
+
+        // India - Hyderabad
+        { id: 14, name: 'Srinivas Reddy', specialization: 'Grief Counselor', experience: '16 years', rating: 4.9, education: 'PhD Grief Counseling, Yale University', hospital: 'Care Hospital Hyderabad', patients: 1100, city: 'hyderabad', image: 'https://images.unsplash.com/photo-1463453091185-61582044d556?auto=format&fit=crop&q=80&w=200' },
+        { id: 15, name: 'Lakshmi Devi', specialization: 'Yoga & Mental Health', experience: '8 years', rating: 4.7, education: 'MSc Yoga Therapy, Kaivalyadhama', hospital: 'Yashoda Hospital', patients: 520, city: 'hyderabad', image: 'https://images.unsplash.com/photo-1589156280159-27698a70f29e?auto=format&fit=crop&q=80&w=200' },
+        { id: 16, name: 'Suresh Kumar', specialization: 'Addiction Therapist', experience: '12 years', rating: 4.8, education: 'MD Addiction Medicine, AIIMS', hospital: 'Apollo Hospital Hyderabad', patients: 780, city: 'hyderabad', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
+
+        // India - Chennai
+        { id: 17, name: 'Karthik Raja', specialization: 'Emotional Intelligence Coach', experience: '10 years', rating: 4.6, city: 'chennai', image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=200' },
+        { id: 18, name: 'Meenakshi Iyer', specialization: 'Clinical Psychologist', experience: '14 years', rating: 4.9, city: 'chennai', image: 'https://images.unsplash.com/photo-1548142813-c348350df52b?auto=format&fit=crop&q=80&w=200' },
+        { id: 19, name: 'Deepak Nathan', specialization: 'Behavioral Therapist', experience: '9 years', rating: 4.7, city: 'chennai', image: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200' },
+
+        // India - Kolkata
+        { id: 20, name: 'Arnab Banerjee', specialization: 'Psychotherapist', experience: '18 years', rating: 5.0, city: 'kolkata', image: 'https://images.unsplash.com/photo-1531427186611-ecfd6d936c79?auto=format&fit=crop&q=80&w=200' },
+        { id: 21, name: 'Deblina Roy', specialization: 'Art Therapist', experience: '7 years', rating: 4.8, city: 'kolkata', image: 'https://images.unsplash.com/photo-1567532939604-b6c5b0ad2e01?auto=format&fit=crop&q=80&w=200' },
+        { id: 22, name: 'Joydeep Das', specialization: 'Career Counselor', experience: '11 years', rating: 4.7, city: 'kolkata', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200' },
+
+        // India - Pune
+        { id: 23, name: 'Sameer Deshpande', specialization: 'Mindfulness Practitioner', experience: '8 years', rating: 4.9, city: 'pune', image: 'https://images.unsplash.com/photo-1552058544-f2b08422138a?auto=format&fit=crop&q=80&w=200' },
+        { id: 24, name: 'Neelam Kulkarni', specialization: 'Occupational Therapist', experience: '12 years', rating: 4.8, city: 'pune', image: 'https://images.unsplash.com/photo-1554151228-14d9def656e4?auto=format&fit=crop&q=80&w=200' },
+        { id: 25, name: 'Ajit Pawar', specialization: 'Sport Psychologist', experience: '10 years', rating: 4.7, city: 'pune', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
+
+        // India - Ahmedabad
+        { id: 26, name: 'Hiren Shah', specialization: 'Rehabilitation Counselor', experience: '15 years', rating: 4.9, city: 'ahmedabad', image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=200' },
+        { id: 27, name: 'Bhakti Patel', specialization: 'Child Development Expert', experience: '9 years', rating: 4.8, city: 'ahmedabad', image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
+        { id: 28, name: 'Sanjay Vaghela', specialization: 'Geriatric Counselor', experience: '20 years', rating: 5.0, city: 'ahmedabad', image: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200' },
+
+        // USA - New York
+        { id: 5, name: 'Elena Rodriguez', specialization: 'Mindfulness Coach', experience: '6 years', rating: 4.6, city: 'new york', image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
+        { id: 29, name: 'John Miller', specialization: 'Cognitive Behavioral Specialist', experience: '15 years', rating: 4.9, city: 'new york', image: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200' },
+        { id: 30, name: 'Sarah Parker', specialization: 'Relationship Expert', experience: '11 years', rating: 4.8, city: 'new york', image: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&q=80&w=200' },
+        { id: 31, name: 'Daniel Blaire', specialization: 'Stress Management', experience: '9 years', rating: 4.7, city: 'new york', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200' },
+
+        // USA - Los Angeles
+        { id: 32, name: 'Monica Geller', specialization: 'Anxiety Specialist', experience: '10 years', rating: 4.9, city: 'los angeles', image: 'https://images.unsplash.com/photo-1554151228-14d9def656e4?auto=format&fit=crop&q=80&w=200' },
+        { id: 33, name: 'Ross Geller', specialization: 'Trauma Counselor', experience: '12 years', rating: 4.8, city: 'los angeles', image: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200' },
+        { id: 34, name: 'Rachel Green', specialization: 'Self-Esteem Coach', experience: '7 years', rating: 4.7, city: 'los angeles', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200' },
+
+        // USA - Chicago
+        { id: 35, name: 'William Turner', specialization: 'Family Therapist', experience: '14 years', rating: 4.9, city: 'chicago', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
+        { id: 36, name: 'Grace Hopper', specialization: 'Clinical Psychologist', experience: '16 years', rating: 5.0, city: 'chicago', image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200' },
+        { id: 37, name: 'Arthur Curry', specialization: 'Depression Specialist', experience: '9 years', rating: 4.7, city: 'chicago', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
+
+        // USA - Houston
+        { id: 38, name: 'Tony Stark', specialization: 'Innovative Stress Management', experience: '18 years', rating: 5.0, city: 'houston', image: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200' },
+        { id: 39, name: 'Pepper Potts', specialization: 'Mindfulness Coach', experience: '11 years', rating: 4.9, city: 'houston', image: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&q=80&w=200' },
+        { id: 40, name: 'Bruce Banner', specialization: 'Anger Management Specialist', experience: '14 years', rating: 4.8, city: 'houston', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200' },
+
+        // USA - Phoenix
+        { id: 41, name: 'Steve Rogers', specialization: 'Grief Counselor', experience: '15 years', rating: 4.9, city: 'phoenix', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
+        { id: 42, name: 'Natasha Romanoff', specialization: 'Crisis Intervention Specialist', experience: '12 years', rating: 4.8, city: 'phoenix', image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
+        { id: 43, name: 'Clint Barton', specialization: 'Focused Behavioral Therapy', experience: '10 years', rating: 4.7, city: 'phoenix', image: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200' },
+
+        // USA - Philadelphia
+        { id: 44, name: 'Wanda Maximoff', specialization: 'Emotional Wellness Coach', experience: '8 years', rating: 4.8, city: 'philadelphia', image: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=200' },
+        { id: 45, name: 'Vision', specialization: 'Analytical Psychology', experience: '13 years', rating: 4.9, city: 'philadelphia', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
+        { id: 46, name: 'Sam Wilson', specialization: 'Post-Traumatic Stress Specialist', experience: '11 years', rating: 4.7, city: 'philadelphia', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200' },
+
+        // UK - London
+        { id: 6, name: 'James Wilson', specialization: 'Trauma Specialist', experience: '14 years', rating: 4.9, city: 'london', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200' },
+        { id: 47, name: 'Charlotte Brontë', specialization: 'Literary Emotional Therapy', experience: '12 years', rating: 4.8, city: 'london', image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
+        { id: 48, name: 'Charles Dickens', specialization: 'Social Anxiety Specialist', experience: '20 years', rating: 5.0, city: 'london', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
+        { id: 49, name: 'Jane Austen', specialization: 'Relationship Counselor', experience: '15 years', rating: 4.9, city: 'london', image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=200' },
+
+        // UK - Birmingham
+        { id: 50, name: 'Thomas Shelby', specialization: 'Conflict Management Expert', experience: '11 years', rating: 4.7, city: 'birmingham', image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=200' },
+        { id: 51, name: 'Arthur Shelby', specialization: 'Anger Management Specialist', experience: '9 years', rating: 4.6, city: 'birmingham', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
+        { id: 52, name: 'Polly Gray', specialization: 'Spiritual Wellness Coach', experience: '16 years', rating: 4.9, city: 'birmingham', image: 'https://images.unsplash.com/photo-1567532939604-b6c5b0ad2e01?auto=format&fit=crop&q=80&w=200' },
+
+        // UK - Manchester
+        { id: 53, name: 'Noel Gallagher', specialization: 'Musical Expression Therapy', experience: '14 years', rating: 4.8, city: 'manchester', image: 'https://images.unsplash.com/photo-1531427186611-ecfd6d936c79?auto=format&fit=crop&q=80&w=200' },
+        { id: 54, name: 'Liam Gallagher', specialization: 'Vocal Stress Release', experience: '12 years', rating: 4.7, city: 'manchester', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
+        { id: 55, name: 'Marcus Rashford', specialization: 'Positive Mindset Coach', experience: '5 years', rating: 4.9, city: 'manchester', image: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200' },
+
+        // UK - Glasgow
+        { id: 56, name: 'Ewan McGregor', specialization: 'Mindfulness Practitioner', experience: '15 years', rating: 4.9, city: 'glasgow', image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=200' },
+        { id: 57, name: 'Tilda Swinton', specialization: 'Visual Art Therapist', experience: '18 years', rating: 5.0, city: 'glasgow', image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
+        { id: 58, name: 'Gerard Butler', specialization: 'Resilience Coach', experience: '12 years', rating: 4.8, city: 'glasgow', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
+
+        // UK - Liverpool
+        { id: 59, name: 'John Lennon', specialization: 'Peace and Harmony Coach', experience: '20 years', rating: 5.0, city: 'liverpool', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
+        { id: 60, name: 'Paul McCartney', specialization: 'Creative Expression Specialist', experience: '19 years', rating: 5.0, city: 'liverpool', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200' },
+        { id: 61, name: 'George Harrison', specialization: 'Spiritual Health Mentor', experience: '17 years', rating: 4.9, city: 'liverpool', image: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200' },
+
+        // Australia - Sydney
+        { id: 8, name: 'Emma Thompson', specialization: 'Relationship Counsellor', experience: '11 years', rating: 4.7, city: 'sydney', image: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&q=80&w=200' },
+        { id: 62, name: 'Nicole Kidman', specialization: 'Emotional Intelligence Coach', experience: '14 years', rating: 4.9, city: 'sydney', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200' },
+        { id: 63, name: 'Hugh Jackman', specialization: 'Resilience Specialist', experience: '15 years', rating: 5.0, city: 'sydney', image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=200' },
+        { id: 64, name: 'Margot Robbie', specialization: 'Psychological Well-being', experience: '8 years', rating: 4.8, city: 'sydney', image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
+
+        // Australia - Melbourne
+        { id: 65, name: 'Cate Blanchett', specialization: 'Clinical Psychologist', experience: '16 years', rating: 5.0, city: 'melbourne', image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200' },
+        { id: 66, name: 'Chris Hemsworth', specialization: 'Mind-Body Connection Coach', experience: '10 years', rating: 4.9, city: 'melbourne', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
+        { id: 67, name: 'Kylie Minogue', specialization: 'Positive Psychology Expert', experience: '20 years', rating: 4.8, city: 'melbourne', image: 'https://images.unsplash.com/photo-1554151228-14d9def656e4?auto=format&fit=crop&q=80&w=200' },
+
+        // Australia - Brisbane
+        { id: 68, name: 'Geoffrey Rush', specialization: 'Narrative Therapist', experience: '22 years', rating: 4.9, city: 'brisbane', image: 'https://images.unsplash.com/photo-1552058544-f2b08422138a?auto=format&fit=crop&q=80&w=200' },
+        { id: 69, name: 'Rose Byrne', specialization: 'Anxiety Coach', experience: '12 years', rating: 4.7, city: 'brisbane', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200' },
+        { id: 70, name: 'Heath Ledger', specialization: 'Emotional Depth Therapist', experience: '15 years', rating: 5.0, city: 'brisbane', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
+
+        // Australia - Perth
+        { id: 71, name: 'Toni Collette', specialization: 'Identity Counselor', experience: '14 years', rating: 4.8, city: 'perth', image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
+        { id: 72, name: 'Sam Worthington', specialization: 'Stress Management', experience: '9 years', rating: 4.6, city: 'perth', image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=200' },
+        { id: 73, name: 'Isla Fisher', specialization: 'Happiness Coach', experience: '11 years', rating: 4.7, city: 'perth', image: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&q=80&w=200' },
+
+        // Australia - Adelaide
+        { id: 74, name: 'Sia Furler', specialization: 'Creative Wellness specialist', experience: '15 years', rating: 4.9, city: 'adelaide', image: 'https://images.unsplash.com/photo-1554151228-14d9def656e4?auto=format&fit=crop&q=80&w=200' },
+        { id: 75, name: 'Teresa Palmer', specialization: 'Mindfulness Expert', experience: '10 years', rating: 4.8, city: 'adelaide', image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
+        { id: 76, name: 'Jai Courtney', specialization: 'Mental Strength Coach', experience: '8 years', rating: 4.6, city: 'adelaide', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
+
+        // Canada - Toronto
+        { id: 77, name: 'Ryan Reynolds', specialization: 'Humor-Based Therapy', experience: '14 years', rating: 4.9, city: 'toronto', image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=200' },
+        { id: 78, name: 'Sandra Oh', specialization: 'Cognitive Behavioral Expert', experience: '18 years', rating: 5.0, city: 'toronto', image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200' },
+        { id: 79, name: 'Drake Parker', specialization: 'Emotional Outlet Specialist', experience: '10 years', rating: 4.7, city: 'toronto', image: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200' },
+        { id: 80, name: 'Rachel McAdams', specialization: 'Relationship Specialist', experience: '12 years', rating: 4.8, city: 'toronto', image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
+
+        // Canada - Vancouver
+        { id: 81, name: 'Seth Rogen', specialization: 'Relaxation Specialist', experience: '12 years', rating: 4.8, city: 'vancouver', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
+        { id: 82, name: 'Cobie Smulders', specialization: 'Resilience Coach', experience: '11 years', rating: 4.9, city: 'vancouver', image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
+        { id: 83, name: 'Ryan Gosling', specialization: 'Quiet Confidence Mentor', experience: '13 years', rating: 5.0, city: 'vancouver', image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=200' },
+
+        // Canada - Montreal
+        { id: 84, name: 'Celine Dion', specialization: 'Emotional Performance Therapy', experience: '25 years', rating: 5.0, city: 'montreal', image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200' },
+        { id: 85, name: 'Justin Trudeau', specialization: 'Empathetic Leadership Coach', experience: '10 years', rating: 4.6, city: 'montreal', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200' },
+        { id: 86, name: 'Leonard Cohen', specialization: 'Deep Existential Counselor', experience: '20 years', rating: 4.9, city: 'montreal', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
+
+        // Canada - Calgary
+        { id: 87, name: 'Bret Hart', specialization: 'Persistence and Grit Coach', experience: '20 years', rating: 4.9, city: 'calgary', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200' },
+        { id: 88, name: 'Elisha Cuthbert', specialization: 'Stress Management Expert', experience: '12 years', rating: 4.7, city: 'calgary', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200' },
+        { id: 89, name: 'Tegan Quin', specialization: 'Musical Identity Therapist', experience: '15 years', rating: 4.8, city: 'calgary', image: 'https://images.unsplash.com/photo-1548142813-c348350df52b?auto=format&fit=crop&q=80&w=200' },
+
+        // Canada - Ottawa
+        { id: 90, name: 'Alanis Morissette', specialization: 'Expressive Release Therapist', experience: '18 years', rating: 4.9, city: 'ottawa', image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
+        { id: 91, name: 'Matthew Perry', specialization: 'Resilience Coach', experience: '14 years', rating: 4.8, city: 'ottawa', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
+        { id: 92, name: 'Margaret Atwood', specialization: 'Reflective Narrative Counselor', experience: '30 years', rating: 5.0, city: 'ottawa', image: 'https://images.unsplash.com/photo-1573166364524-d9dbfd8bbf83?auto=format&fit=crop&q=80&w=200' },
+    ];
+
+    const handleBack = () => {
+        if (showResults) {
+            setShowResults(false);
+        } else {
+            navigate(-1);
+        }
+    };
+
+    const handleCountryChange = (e) => {
+        setSelectedCountry(e.target.value);
+        setSelectedCity('');
+    };
+
+    const handleFindCounsellors = () => {
+        if (!selectedCity) return;
+        const results = mockCounsellors.filter(c => c.city === selectedCity);
+        setFilteredCounsellors(results);
+        setShowResults(true);
+    };
+
+    return (
+        <div className="app-container" style={{
+            backgroundImage: `url(${mainBg})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'flex-start',
+            paddingTop: '4rem',
+            minHeight: '100vh',
+            overflowY: 'auto'
+        }}>
+            {/* Back Button */}
+            <button className="nav-btn" onClick={handleBack} style={{
+                position: 'fixed',
+                top: '2rem',
+                left: '2rem',
+                zIndex: 100,
+                background: 'rgba(255, 255, 255, 0.4)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.3)'
+            }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+                {showResults ? 'Back to Search' : 'Back'}
+            </button>
+
+            <div className="animate-fade-in" style={{ textAlign: 'center', width: '90%', maxWidth: showResults ? '1000px' : '800px', padding: '2rem 4rem', marginBottom: '4rem' }}>
+                <h1 className="gradient-text" style={{ fontSize: showResults ? '4rem' : '5rem', fontWeight: '900', marginBottom: '1rem', marginTop: '0.5rem', letterSpacing: '-2px', lineHeight: '1.1' }}>
+                    {showResults ? `Counsellors in ${selectedCity.charAt(0).toUpperCase() + selectedCity.slice(1)}` : 'Book A Counsellor'}
+                </h1>
+
+                {!showResults ? (
+                    <>
+                        <p style={{ color: '#ffffff', fontSize: '1.25rem', marginBottom: '3rem', fontWeight: '500' }}>
+                            Find professional support tailored to your location.
+                        </p>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'center' }}>
+                            {/* Country Selector */}
+                            <div style={{ width: '100%', maxWidth: '400px', textAlign: 'left' }}>
+                                <label style={{ color: '#ffffff', display: 'block', marginBottom: '0.75rem', fontWeight: '700', fontSize: '1.1rem' }}>Select your Country</label>
+                                <select
+                                    className="glass-input"
+                                    style={{ width: '100%', marginBottom: '0', background: '#ffffff', color: '#000000', opacity: 1 }}
+                                    value={selectedCountry}
+                                    onChange={handleCountryChange}
+                                >
+                                    <option value="">Choose your country...</option>
+                                    {Object.keys(locationData).map(country => (
+                                        <option key={country} value={country}>{country}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* City Selector - Dependent on Country */}
+                            <div style={{
+                                width: '100%',
+                                maxWidth: '400px',
+                                textAlign: 'left',
+                                transition: 'all 0.3s ease'
+                            }}>
+                                <label style={{ color: '#ffffff', display: 'block', marginBottom: '0.75rem', fontWeight: '700', fontSize: '1.1rem' }}>Select your City</label>
+                                <select
+                                    className="glass-input"
+                                    style={{ width: '100%', marginBottom: '0', background: '#ffffff', color: '#000000', opacity: 1 }}
+                                    value={selectedCity}
+                                    onChange={(e) => setSelectedCity(e.target.value)}
+                                    disabled={!selectedCountry}
+                                >
+                                    <option value="">
+                                        {!selectedCountry ? 'Select a country first...' : 'Choose your city...'}
+                                    </option>
+                                    {selectedCountry && locationData[selectedCountry].map(city => (
+                                        <option key={city} value={city.toLowerCase()}>{city}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <button
+                                className="nav-btn logout-primary-btn"
+                                onClick={handleFindCounsellors}
+                                style={{
+                                    padding: '1.2rem 4rem',
+                                    fontSize: '1.3rem',
+                                    fontWeight: '800',
+                                    borderRadius: '50px',
+                                    marginTop: '1rem',
+                                    cursor: selectedCity ? 'pointer' : 'not-allowed',
+                                    opacity: selectedCity ? 1 : 0.7
+                                }}
+                                disabled={!selectedCity}
+                            >
+                                Find Counsellors
+                            </button>
+                        </div>
+                    </>
+                ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '2rem', marginTop: '3rem' }}>
+                        {filteredCounsellors.length > 0 ? (
+                            filteredCounsellors.map(counsellor => (
+                                <div key={counsellor.id} className="glass-panel" style={{ padding: '2rem', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '1rem', animationDelay: `${counsellor.id * 0.1}s` }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '0.5rem' }}>
+                                        <img src={counsellor.image} alt={counsellor.name} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--color-blue)' }} />
+                                        <div>
+                                            <h3 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--text-primary)' }}>{counsellor.name}</h3>
+                                            <p style={{ margin: 0, color: 'var(--color-blue)', fontWeight: '700', fontSize: '0.9rem' }}>{counsellor.specialization}</p>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 0', borderTop: '1px solid rgba(0,0,0,0.05)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Exp: <strong>{counsellor.experience}</strong></span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="var(--color-orange)" stroke="var(--color-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                                            <span style={{ fontWeight: '800', fontSize: '1rem' }}>{counsellor.rating}</span>
+                                        </div>
+                                    </div>
+
+                                    <button className="nav-btn logout-primary-btn" style={{ width: '100%', marginTop: 'auto', padding: '1rem' }}>
+                                        Book Session
+                                    </button>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="glass-panel" style={{ gridColumn: '1 / -1', padding: '4rem', color: 'var(--text-primary)' }}>
+                                <h2 style={{ marginBottom: '1rem' }}>No Counsellors Found</h2>
+                                <p style={{ color: 'var(--text-secondary)' }}>We currently don't have available counsellors in this city. Try selecting another city like Delhi or Mumbai.</p>
+                                <button className="nav-btn" onClick={() => setShowResults(false)} style={{ marginTop: '2rem' }}>Back to Search</button>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Decorative background elements */}
+            <div className="glow-orb orb-1" style={{ position: 'fixed' }}></div>
+            <div className="glow-orb orb-2" style={{ position: 'fixed' }}></div>
+        </div>
+    );
+};
+
+export default BookACounsellor;
