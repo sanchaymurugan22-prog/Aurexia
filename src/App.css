@@ -1,20 +1,32 @@
 /* Component-specific styles */
 .app-container {
   min-height: 100vh;
+  width: 100%;
+  max-width: 100vw;
+  min-width: 0;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
   position: relative;
   overflow-x: hidden;
+  overflow-y: visible;
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
   box-sizing: border-box;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+.hero-section {
+  width: 100%;
+  padding-top: 6rem;
 }
 
 .fixed-screen-container {
   height: 100vh;
-  width: 100vw;
+  width: 100%;
   overflow: hidden;
   display: flex;
   justify-content: center;
@@ -124,6 +136,43 @@
   animation: float 8s ease-in-out infinite;
 }
 
+/* Icon animations for WelcomePage tiles */
+.tile-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: center;
+  animation: none !important;
+}
+
+@keyframes icon-bob {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes icon-pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.06); opacity: 0.95; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes icon-rotate-slow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.icon-animate-ai { animation: icon-pulse 2.2s ease-in-out infinite; }
+.icon-animate-peer { animation: icon-bob 3s ease-in-out infinite; }
+.icon-animate-counsellor { animation: icon-bob 2.8s ease-in-out infinite; }
+.icon-animate-video { animation: icon-pulse 2s ease-in-out infinite; }
+.icon-animate-book { animation: icon-rotate-slow 8s linear infinite; }
+.icon-animate-music { animation: icon-bob 2.6s ease-in-out infinite; }
+.icon-animate-library { animation: none; }
+.icon-animate-sound { animation: icon-bob 2.6s ease-in-out infinite; }
+.icon-animate-classes { animation: icon-pulse 2.4s ease-in-out infinite; }
+
+
 /* Toast Notifications */
 .toast-container {
   position: fixed;
@@ -196,18 +245,43 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 1.5rem;
-  flex-wrap: wrap;
+  gap: 1rem;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-links-scroll-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  margin-right: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  /* Masking out to fade the edges could be cool, but physical scrollbar is requested */
+}
+.nav-links-scroll-container::-webkit-scrollbar {
+  height: 6px;
+}
+.nav-links-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.nav-links-scroll-container::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
 }
 
 .nav-btn {
   background: rgba(255, 255, 255, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.4);
-  padding: 0.5rem 1rem;
+  padding: 0.45rem 0.9rem;
   border-radius: 12px;
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.82rem;
+  font-weight: 500;
   color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -260,11 +334,12 @@
 .nav-text-link {
   background: none;
   border: none;
-  color: var(--text-secondary);
-  font-size: 0.95rem;
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  padding: 0.25rem 0.5rem;
+  padding: 0.2rem 0.55rem;
   transition: color 0.2s ease, transform 0.2s ease;
   white-space: nowrap;
 }
@@ -401,8 +476,8 @@
 .welcome-card {
   width: 90%;
   max-width: 800px;
-  padding: clamp(1.5rem, 5vw, 4rem);
-  margin: 6rem auto 2rem auto;
+  padding: clamp(1.35rem, 4.6vw, 3.5rem);
+  margin: 5.8rem auto 1.9rem auto;
   text-align: center;
   transition: transform 0.3s ease;
   box-sizing: border-box;
@@ -464,4 +539,505 @@
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* Meditation Tracks Player UI Styles */
+.music-layout-container {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background-color: #ffffff;
+  color: #1f2937;
+  position: relative;
+}
+
+/* Ambient glow overlay */
+.ambient-glow-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 1.5s ease;
+  box-shadow: inset 0 0 0px 0px transparent;
+}
+
+.ambient-glow-overlay.playing {
+  opacity: 1;
+  animation: pulse-glow 6s infinite alternate ease-in-out;
+}
+
+@keyframes pulse-glow {
+  0% { box-shadow: inset 0 0 80px 10px rgba(56, 189, 248, 0.15); }
+  25% { box-shadow: inset 0 0 120px 20px rgba(16, 185, 129, 0.2); }
+  50% { box-shadow: inset 0 0 90px 15px rgba(249, 115, 22, 0.15); }
+  75% { box-shadow: inset 0 0 110px 15px rgba(168, 85, 247, 0.2); }
+  100% { box-shadow: inset 0 0 80px 10px rgba(56, 189, 248, 0.15); }
+}
+
+.music-sidebar {
+  width: 260px;
+  background-color: #f8fafc;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  z-index: 10;
+}
+
+.music-main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #f1f5f9 0%, #ffffff 400px);
+  padding-bottom: 120px; /* Space for bottom player */
+  z-index: 1;
+}
+
+.music-bottom-player {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 90px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  z-index: 50;
+}
+
+.music-main-header {
+  padding: 1.5rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: sticky;
+  top: 0;
+  background: rgba(241, 245, 249, 0.9);
+  backdrop-filter: blur(10px);
+  z-index: 20;
+}
+
+.top-mixes-scroll {
+  display: flex;
+  gap: 1.5rem;
+  overflow-x: auto;
+  padding: 1rem 2rem 2rem 2rem;
+  scroll-behavior: smooth;
+}
+
+.top-mix-card {
+  min-width: 180px;
+  background: #ffffff;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.top-mix-card:hover {
+  background: #f8fafc;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+  transform: translateY(-4px);
+}
+
+.track-list-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.track-list-row {
+  display: grid;
+  grid-template-columns: 40px 3fr 2fr 1fr;
+  padding: 0.75rem 2rem;
+  align-items: center;
+  color: #64748b;
+  border-radius: 8px;
+  margin: 0 1rem;
+  transition: background-color 0.2s;
+  cursor: pointer;
+}
+
+.track-list-row:hover {
+  background-color: rgba(0,0,0,0.03);
+}
+
+.track-list-row.active {
+  background-color: rgba(56, 189, 248, 0.1);
+}
+
+.track-list-header {
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  cursor: default;
+}
+
+.track-list-header:hover {
+  background-color: transparent;
+}
+
+/* Player specific */
+.player-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  max-width: 600px;
+}
+
+.player-buttons {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.player-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.player-btn:hover {
+  color: #1f2937;
+}
+
+.player-btn.play-circle {
+  background: #1f2937;
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.player-btn.play-circle:hover {
+  transform: scale(1.05);
+  background: #334155;
+  color: white;
+}
+
+.progress-container {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+}
+
+.progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: #1f2937;
+  border-radius: 2px;
+}
+
+.volume-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 140px;
+  color: #64748b;
+}
+
+.volume-slider {
+  flex: 1;
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+}
+
+/* Advanced Meditation Tracks Features */
+
+/* Sidebar Active States */
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #64748b;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.sidebar-item:hover {
+  color: #1f2937;
+}
+
+.sidebar-item.active {
+  background-color: #f1f5f9;
+  color: #1f2937;
+}
+
+.album-item {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  color: #64748b;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.album-item:hover {
+  color: #1f2937;
+}
+
+.album-item.active {
+  background-color: #f1f5f9;
+  color: #1f2937;
+  font-weight: 500;
+}
+
+/* Big Track View */
+.big-track-view {
+  display: flex;
+  flex-direction: column;
+  padding: 2rem 2rem 1rem 2rem;
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.1) 0%, transparent 100%);
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 1rem;
+}
+
+.big-track-content {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-end;
+}
+
+.big-track-poster {
+  width: 200px;
+  height: 200px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  object-fit: cover;
+}
+
+.big-track-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.big-track-title {
+  font-size: 3.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -1px;
+  margin: 0;
+  color: #111827;
+}
+
+.big-track-artist {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: #4b5563;
+  margin: 0;
+}
+
+.big-play-btn {
+  margin-top: 1rem;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #10b981;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+  transition: transform 0.2s, background 0.2s;
+}
+
+.big-play-btn:hover {
+  transform: scale(1.05);
+  background: #059669;
+}
+
+/* Search Input */
+.search-input-glass {
+  width: 100%;
+  max-width: 400px;
+  padding: 0.75rem 1rem 0.75rem 2.5rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 50px;
+  font-size: 1rem;
+  outline: none;
+  transition: box-shadow 0.2s;
+}
+
+.search-input-glass:focus {
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+}
+
+.search-container {
+  position: relative;
+  margin: 0 2rem 2rem 2rem;
+}
+
+.search-icon-inside {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+}
+
+/* Icons within tracks */
+.track-icon-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+  border-radius: 50%;
+}
+
+.track-icon-btn:hover {
+  color: #1f2937;
+  background: rgba(0,0,0,0.05);
+}
+
+.track-icon-btn.liked {
+  color: #ef4444; /* Red */
+}
+
+/* Context Menu */
+.track-context-menu {
+  position: absolute;
+  right: 2rem;
+  margin-top: 2rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  padding: 0.5rem;
+  z-index: 100;
+  min-width: 200px;
+}
+
+.context-menu-item {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s;
+  color: #1f2937;
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  font-size: 0.9rem;
+}
+
+.context-menu-item:hover {
+  background: #f1f5f9;
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 0.25rem 0;
+}
+
+.create-album-form {
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.create-album-input {
+  padding: 0.4rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.create-album-btn {
+  padding: 0.4rem;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+/* Ambient Border Animation for Meditation Tracks */
+@keyframes ambient-breathe {
+  0% { box-shadow: inset 0 0 40px rgba(139, 92, 246, 0.2), inset 0 0 80px rgba(56, 189, 248, 0.1); }
+  50% { box-shadow: inset 0 0 120px rgba(139, 92, 246, 0.6), inset 0 0 160px rgba(56, 189, 248, 0.4); }
+  100% { box-shadow: inset 0 0 40px rgba(139, 92, 246, 0.2), inset 0 0 80px rgba(56, 189, 248, 0.1); }
+}
+
+.ambient-border-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 9999;
+  transition: opacity 2s ease-in-out;
+  opacity: 0;
+}
+
+.ambient-border-overlay.active {
+  opacity: 1;
+  animation: ambient-breathe 8s infinite ease-in-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 20px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }

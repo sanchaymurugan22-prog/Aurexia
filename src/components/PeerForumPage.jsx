@@ -16,6 +16,7 @@ const PeerForumPage = () => {
     const [showReportModal, setShowReportModal] = useState(false);
     const [reportReason, setReportReason] = useState("");
     const [reportingItem, setReportingItem] = useState(null); // { id, type, user, userEmail, content }
+    const [toastMessage, setToastMessage] = useState("");
     const currentUser = JSON.parse(localStorage.getItem('currentUser')) || { name: 'Guest User', education: 'Student', email: 'guest@aurexia.com' };
 
     const initialMockQuestions = [
@@ -55,7 +56,10 @@ const PeerForumPage = () => {
             tags: ["Career", "Anxiety"],
             likes: 156,
             isLiked: false,
-            replies: []
+            replies: [
+                { id: 301, user: "Prof. Richards", role: "Career Advisor", text: "It's completely normal to face rejections, David. Remember, you only need one 'yes'. Try to tailor your resume for each specific role and don't hesitate to reach out for a mock interview.", likes: 89, isLiked: false },
+                { id: 302, user: "Alumni Alex", role: "Grad 2023", text: "I had 60 rejections before my first offer. It's a numbers game right now. Take breaks so you don't burn out!", likes: 112, isLiked: false }
+            ]
         },
         {
             id: 4,
@@ -66,7 +70,9 @@ const PeerForumPage = () => {
             tags: ["Personal", "Home"],
             likes: 24,
             isLiked: false,
-            replies: []
+            replies: [
+                { id: 401, user: "Rachel G.", role: "Senior, Art History", text: "Bring something from home to decorate your room! I brought my childhood blanket and it made my dorm feel much cozier. Also, schedule regular video calls.", likes: 34, isLiked: false }
+            ]
         },
         {
             id: 5,
@@ -77,7 +83,10 @@ const PeerForumPage = () => {
             tags: ["Health", "Academics"],
             likes: 67,
             isLiked: false,
-            replies: []
+            replies: [
+                { id: 501, user: "Dr. H", role: "Professor of Medicine", text: "It is common but not sustainable. If your cognitive abilities are suffering, your studies will too. Prioritize 6 hours minimum, no exceptions.", likes: 55, isLiked: false },
+                { id: 502, user: "Sarah K.", role: "Junior, Psychology", text: "Try looking into 'sleep hygiene' and taking strategic power naps (20 mins max). It helped me a lot during finals!", likes: 21, isLiked: false }
+            ]
         },
         {
             id: 6,
@@ -88,7 +97,9 @@ const PeerForumPage = () => {
             tags: ["Career", "Ethics"],
             likes: 210,
             isLiked: false,
-            replies: []
+            replies: [
+                { id: 601, user: "Admin", role: "University Staff", text: "Please reach out to the ombudsman office or the graduate student coordinator anonymously. You are protected by university policies.", likes: 180, isLiked: false }
+            ]
         },
         {
             id: 7,
@@ -248,8 +259,27 @@ const PeerForumPage = () => {
 
     // Initial questions state from localStorage
     const [questions, setQuestions] = useState(() => {
-        const saved = localStorage.getItem('aurexia_peer_forum_data');
-        return saved ? JSON.parse(saved) : initialMockQuestions;
+        try {
+            const saved = localStorage.getItem('aurexia_peer_forum_data');
+            if (saved) {
+                let parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    const q3 = parsed.find(q => q.id === 3);
+                    // If q3 has no replies, they are stuck on the old mock data, so force reset
+                    if (q3 && (!q3.replies || q3.replies.length === 0)) {
+                        return initialMockQuestions;
+                    }
+                    // If the cache is somehow completely empty, return mock data
+                    if (parsed.length < 5) {
+                        return initialMockQuestions;
+                    }
+                    return parsed;
+                }
+            }
+        } catch (e) {
+            console.error("Error parsing peer forum data", e);
+        }
+        return initialMockQuestions;
     });
 
     React.useEffect(() => {
@@ -290,6 +320,8 @@ const PeerForumPage = () => {
         setIsAsking(false);
         setNewQuestionText("");
         setNewQuestionTags("");
+        setToastMessage("Question asked successfully!");
+        setTimeout(() => setToastMessage(""), 3000);
     };
 
     const handleAddReply = (questionId) => {
@@ -313,6 +345,8 @@ const PeerForumPage = () => {
         }));
 
         setNewReplyText("");
+        setToastMessage("Replied successfully!");
+        setTimeout(() => setToastMessage(""), 3000);
     };
 
     const handleLikeQuestion = (questionId) => {
@@ -687,6 +721,24 @@ const PeerForumPage = () => {
                                     <p style={{ color: 'var(--text-primary)', fontSize: '1.1rem', lineHeight: '1.6', margin: '0.5rem 0' }}>
                                         {item.question}
                                     </p>
+
+                                    {item.replies && item.replies.length > 0 && (
+                                        <div style={{ background: 'rgba(59, 130, 246, 0.05)', padding: '1.2rem', borderRadius: '12px', borderLeft: '4px solid var(--color-blue)', marginTop: '0.5rem', cursor: 'pointer' }} onClick={() => setSelectedQuestionId(item.id)}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem', alignItems: 'center' }}>
+                                                <span style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--color-blue)' }}>Top Reply by {item.replies[0].user}</span>
+                                                <span style={{ fontSize: '0.85rem', color: 'var(--color-blue)', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '600' }}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1"><path d="M7 10v12" /><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2h2.83a2 2 0 0 0 1.74-1c.38-.66.75-1.32 1.12-1.98a4 4 0 0 1 4.54-1.93 4 4 0 0 1 2.76 2.79z" /></svg>
+                                                    {item.replies[0].likes}
+                                                </span>
+                                            </div>
+                                            <p style={{ fontSize: '1rem', color: 'var(--text-secondary)', margin: 0, fontStyle: 'italic', lineHeight: '1.5' }}>"{item.replies[0].text}"</p>
+                                            {item.replies.length > 1 && (
+                                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.8rem', fontWeight: '600' }}>
+                                                    + {item.replies.length - 1} more reply{item.replies.length > 2 ? 's' : ''}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
 
                                     <div style={{ display: 'flex', gap: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem', marginTop: '0.5rem' }}>
                                         <button
@@ -1295,6 +1347,32 @@ const PeerForumPage = () => {
                             </button>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Toast Notification */}
+            {toastMessage && (
+                <div style={{
+                    position: 'fixed',
+                    bottom: '30px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    backgroundColor: 'rgba(34, 197, 94, 0.95)',
+                    backdropFilter: 'blur(10px)',
+                    color: 'white',
+                    padding: '12px 28px',
+                    borderRadius: '50px',
+                    boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+                    zIndex: 2000,
+                    fontWeight: 'bold',
+                    fontSize: '1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    animation: 'fadeInUp 0.3s ease-out'
+                }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                    {toastMessage}
                 </div>
             )}
         </div>

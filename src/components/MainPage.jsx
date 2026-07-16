@@ -1,14 +1,17 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../context/LanguageContext.jsx';
 import '../App.css';
 import logo from '../assets/logo.jpg';
 
 import mainBg from '../assets/main.webp';
 import ReportModal from './ReportModal';
+import WelcomePage from './WelcomePage';
 
 const MainPage = () => {
     const navigate = useNavigate();
     const currentUser = JSON.parse(localStorage.getItem('currentUser')) || { name: 'Guest User', role: 'public', email: 'guest@aurexia.com' };
+    const { t } = useLanguage();
     const notificationKey = `notifications_${currentUser.email}`;
     const [notifications, setNotifications] = React.useState([]);
     const [showNotifications, setShowNotifications] = React.useState(false);
@@ -57,30 +60,33 @@ const MainPage = () => {
             backgroundImage: `url(${mainBg})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            height: '100vh',
-            overflow: 'hidden'
+            width: '100%',
+            maxWidth: '100vw',
+            minWidth: 0,
+            overflowX: 'hidden'
         }}>
             <header className="top-panel">
                 <div className="brand-section">
                     <img src={logo} alt="Aurexia Logo" className="app-logo-small" />
                     <div className="top-panel-content">
                         <h1 className="title-small gradient-text">Aurexia</h1>
-                        <p className="tagline-small">Lightness for the mind</p>
+                        <p className="tagline-small">{t('lightnessForMind')}</p>
                     </div>
                 </div>
 
                 <nav className="top-nav-menu">
                     {/* Feature Links (Ordered Left to Right) */}
-                    <button className="nav-text-link" onClick={() => navigate('/about')}>About</button>
-                    <button className="nav-text-link" onClick={() => navigate('/ai-companion')}>AI Companion</button>
-                    <button className="nav-text-link" onClick={() => navigate('/peer-forum')}>Peer Forum</button>
-                    <button className="nav-text-link" onClick={() => navigate('/book-counsellor')}>Book a Counsellor</button>
-                    <button className="nav-text-link" onClick={() => navigate('/videos')}>Videos</button>
-                    <button className="nav-text-link" onClick={() => navigate('/books')}>Library of Wisdom</button>
-                    <button className="nav-text-link" onClick={() => navigate('/classes')}>Classes & Events</button>
+                    {/* About button removed — content now shown below welcome card */}
+                    <button className="nav-text-link" onClick={() => navigate('/ai-companion')}>{t('aiCompanion')}</button>
+                    <button className="nav-text-link" onClick={() => navigate('/peer-forum')}>{t('peerForum')}</button>
+                    <button className="nav-text-link" onClick={() => navigate('/book-counsellor')}>{t('bookCounsellor')}</button>
+                    <button className="nav-text-link" onClick={() => navigate('/videos')}>{t('videos')}</button>
+                    <button className="nav-text-link" onClick={() => navigate('/books')}>{t('libraryOfWisdom')}</button>
+                    <button className="nav-text-link" onClick={() => navigate('/sound-sanctuary')}>Sound Sanctuary</button>
+                    <button className="nav-text-link" onClick={() => navigate('/classes')}>{t('classesAndEvents')}</button>
 
                     {/* Profile Icon */}
-                    <button className="icon-only-btn" title="Profile" onClick={() => navigate('/profile')}>
+                    <button className="icon-only-btn" title={t('profile')} onClick={() => navigate('/profile')}>
                         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                             <circle cx="12" cy="7" r="4"></circle>
@@ -90,7 +96,7 @@ const MainPage = () => {
                     {/* Report Issue Button */}
                     <button
                         className="icon-only-btn"
-                        title="Report Issue"
+                        title={t('reportIssue')}
                         onClick={() => setShowReportModal(true)}
                         style={{ color: '#fbbf24' }}
                     >
@@ -105,7 +111,7 @@ const MainPage = () => {
                     <div style={{ position: 'relative' }}>
                         <button
                             className="icon-only-btn"
-                            title="Notifications"
+                            title={t('notifications')}
                             onClick={toggleNotifications}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -142,7 +148,7 @@ const MainPage = () => {
                                 boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
                             }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                    <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>Notifications</h3>
+                                    <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>{t('notifications')}</h3>
                                     {notifications.length > 0 && (
                                         <button
                                             onClick={clearAllNotifications}
@@ -160,13 +166,13 @@ const MainPage = () => {
                                             onMouseEnter={(e) => e.target.style.background = 'rgba(239, 68, 68, 0.1)'}
                                             onMouseLeave={(e) => e.target.style.background = 'none'}
                                         >
-                                            Clear All
+                                            {t('clearAll')}
                                         </button>
                                     )}
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                     {notifications.length === 0 ? (
-                                        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '1rem 0' }}>No new notifications</p>
+                                        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '1rem 0' }}>{t('noNotifications')}</p>
                                     ) : (
                                         notifications.map(notification => (
                                             <div
@@ -261,7 +267,7 @@ const MainPage = () => {
                             <polyline points="16 17 21 12 16 7"></polyline>
                             <line x1="21" y1="12" x2="9" y2="12"></line>
                         </svg>
-                        Logout
+                        {t('logout')}
                     </button>
                 </nav>
             </header>
@@ -278,6 +284,7 @@ const MainPage = () => {
                         offering you the tools to breathe deeply, reflect clearly, and grow beautifully.
                     </p>
                 </div>
+                <WelcomePage />
             </main>
 
             {/* Decorative background elements */}

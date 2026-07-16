@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { db } from '../firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import '../App.css';
 import mainBg from '../assets/main.webp';
 import tutorsBg from '../assets/tutors.jpg';
@@ -18,9 +20,16 @@ const ManageTutors = () => {
     });
 
     useEffect(() => {
-        const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
-        const filtered = allUsers.filter(u => u.role === 'tutor');
-        setTutors(filtered);
+        const fetchTutors = async () => {
+            try {
+                const snapshot = await getDocs(collection(db, 'tutors'));
+                const data = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
+                setTutors(data);
+            } catch (error) {
+                console.error('Error fetching tutors:', error);
+            }
+        };
+        fetchTutors();
     }, []);
 
     useEffect(() => {

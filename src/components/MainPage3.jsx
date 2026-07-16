@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../App.css';
 import logo from '../assets/logo.jpg';
+import WelcomePage from './WelcomePage';
 import mainBg from '../assets/main.webp';
 
 const MainPage3 = () => {
@@ -51,15 +52,15 @@ const MainPage3 = () => {
 
     return (
         <div className="app-container" style={{
-            minHeight: '100vh',
-            height: 'auto',
             width: '100%',
+            maxWidth: '100vw',
+            minWidth: 0,
             background: 'transparent',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'flex-start',
             alignItems: 'stretch',
-            overflow: 'visible',
+            overflowX: 'hidden',
             position: 'relative',
             paddingBottom: '2rem'
         }}>
@@ -98,6 +99,7 @@ const MainPage3 = () => {
                     <button className="nav-text-link" onClick={() => navigate('/peer-forum')}>Peer Forum</button>
                     <button className="nav-text-link" onClick={() => navigate('/tutor-classes')}>My Classes and Events</button>
                     <button className="nav-text-link" onClick={() => navigate('/book-counsellor')}>Book a Counsellor</button>
+                    <button className="nav-text-link" onClick={() => navigate('/sound-sanctuary')}>Sound Sanctuary</button>
                     <button className="nav-text-link" onClick={() => navigate('/videos')}>Videos</button>
                     <button className="nav-text-link" onClick={() => navigate('/books')}>Library of Wisdom</button>
 
@@ -300,6 +302,7 @@ const MainPage3 = () => {
                         offering you the tools to breathe deeply, reflect clearly, and grow beautifully.
                     </p>
                 </div>
+                <WelcomePage />
             </main>
 
             {/* Decorative background elements */}

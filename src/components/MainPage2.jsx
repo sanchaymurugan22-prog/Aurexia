@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../App.css';
 import logo from '../assets/logo.jpg';
+import WelcomePage from './WelcomePage';
 import mainBg from '../assets/main.webp';
 
 const MainPage2 = () => {
@@ -13,6 +14,8 @@ const MainPage2 = () => {
     const [showCancelModal, setShowCancelModal] = React.useState(false);
     const [appointmentToCancel, setAppointmentToCancel] = React.useState(null);
     const [cancellationReason, setCancellationReason] = React.useState('');
+    const [showReviews, setShowReviews] = React.useState(false);
+    const [reviews, setReviews] = React.useState([]);
 
     const currentUser = JSON.parse(localStorage.getItem('currentUser')) || { name: 'Guest User', role: 'public', email: 'guest@aurexia.com' };
     const notificationKey = `notifications_${currentUser.email}`;
@@ -24,6 +27,10 @@ const MainPage2 = () => {
         const allAppointments = JSON.parse(localStorage.getItem('appointments') || '[]');
         const doctorAppointments = allAppointments.filter(a => a.doctorEmail === currentUser.email);
         setAppointments(doctorAppointments);
+        
+        const counsellorId = `reg_${currentUser.email}`;
+        const storedReviews = JSON.parse(localStorage.getItem(`reviews_${counsellorId}`) || '[]');
+        setReviews(storedReviews);
     }, [notificationKey, currentUser.email]);
 
     const unreadCount = notifications.filter(n => n.unread).length;
@@ -44,6 +51,25 @@ const MainPage2 = () => {
     const clearAllNotifications = () => {
         setNotifications([]);
         localStorage.setItem(notificationKey, JSON.stringify([]));
+    };
+
+    const handleDeleteReview = (reviewId) => {
+        if (!window.confirm("Are you sure you want to delete this review?")) return;
+        
+        const counsellorId = `reg_${currentUser.email}`;
+        const storageKey = `reviews_${counsellorId}`;
+        const updatedReviews = reviews.map(r => r.id === reviewId ? { ...r, isDeleted: true } : r);
+        
+        setReviews(updatedReviews);
+        localStorage.setItem(storageKey, JSON.stringify(updatedReviews));
+    };
+
+    const handleOpenReviews = () => {
+        // Always reload fresh reviews from localStorage when opening the modal
+        const counsellorId = `reg_${currentUser.email}`;
+        const freshReviews = JSON.parse(localStorage.getItem(`reviews_${counsellorId}`) || '[]');
+        setReviews(freshReviews);
+        setShowReviews(true);
     };
 
     const toggleNotifications = () => {
@@ -126,13 +152,15 @@ const MainPage2 = () => {
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundAttachment: 'fixed',
-            minHeight: '100vh',
             width: '100%',
+            maxWidth: '100vw',
+            minWidth: 0,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'flex-start',
             alignItems: 'center',
-            paddingBottom: '2rem'
+            paddingBottom: '2rem',
+            overflowX: 'hidden'
         }}>
             {!showAppointments && (
                 <header className="top-panel">
@@ -146,12 +174,13 @@ const MainPage2 = () => {
 
                     <nav className="top-nav-menu">
                         {/* Feature Links (Ordered Left to Right) */}
-                        <button className="nav-text-link" onClick={() => navigate('/about')}>About</button>
+                        {/* About button removed — content moved below welcome card */}
                         <button className="nav-text-link" onClick={() => navigate('/ai-companion')}>AI Companion</button>
                         <button className="nav-text-link" onClick={() => navigate('/peer-forum')}>Peer Forum</button>
                         <button className="nav-text-link" onClick={() => { setShowAppointments(true); setShowNotifications(false); }}>Appointments</button>
                         <button className="nav-text-link" onClick={() => navigate('/videos')}>Videos</button>
                         <button className="nav-text-link" onClick={() => navigate('/books')}>Library of Wisdom</button>
+                        <button className="nav-text-link" onClick={() => navigate('/sound-sanctuary')}>Sound Sanctuary</button>
                         <button className="nav-text-link" onClick={() => navigate('/classes')}>Classes & Events</button>
 
 
@@ -337,57 +366,67 @@ const MainPage2 = () => {
 
             <main className="hero-section" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBottom: 0 }}>
                 {!showAppointments ? (
-                    <div className="glass-panel welcome-card animate-fade-in">
-                        <div className="welcome-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <div>
-                                <p className="user-greeting">Welcome doctor, {currentUser.name}</p>
-                                <h1 className="welcome-title gradient-text">Welcome to Aurexia</h1>
-                                {(currentUser.hospital || currentUser.experience) && (
-                                    <div style={{
-                                        display: 'flex',
-                                        gap: '1rem',
-                                        marginTop: '0.8rem',
-                                        fontSize: '0.9rem',
-                                        color: 'var(--text-secondary)',
-                                        fontWeight: '500',
-                                        flexWrap: 'wrap',
-                                        justifyContent: 'center'
-                                    }}>
-                                        {currentUser.hospital && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z" /><path d="M6 12v5c3 3 9 3 12 0v-5" /></svg>
-                                                {currentUser.hospital}
-                                            </div>
-                                        )}
-                                        {currentUser.experience && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" /></svg>
-                                                {currentUser.experience} Exp.
-                                            </div>
-                                        )}
-                                        {(currentUser.city || currentUser.state || currentUser.country) && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
-                                                {[currentUser.city, currentUser.state, currentUser.country].filter(Boolean).join(', ')}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                    <>
+                        <div className="glass-panel welcome-card animate-fade-in">
+                            <div className="welcome-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                    <p className="user-greeting">Welcome doctor, {currentUser.name}</p>
+                                    <h1 className="welcome-title gradient-text">Welcome to Aurexia</h1>
+                                    {(currentUser.hospital || currentUser.experience) && (
+                                        <div style={{
+                                            display: 'flex',
+                                            gap: '1rem',
+                                            marginTop: '0.8rem',
+                                            fontSize: '0.9rem',
+                                            color: 'var(--text-secondary)',
+                                            fontWeight: '500',
+                                            flexWrap: 'wrap',
+                                            justifyContent: 'center'
+                                        }}>
+                                            {currentUser.hospital && (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z" /><path d="M6 12v5c3 3 9 3 12 0v-5" /></svg>
+                                                    {currentUser.hospital}
+                                                </div>
+                                            )}
+                                            {currentUser.experience && (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" /></svg>
+                                                    {currentUser.experience} Exp.
+                                                </div>
+                                            )}
+                                            {(currentUser.city || currentUser.state || currentUser.country) && (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+                                                    {[currentUser.city, currentUser.state, currentUser.country].filter(Boolean).join(', ')}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <p className="welcome-text">
+                                A peaceful retreat for your mind to find its balance.
+                                In this safe harbor, we celebrate your journey toward wellness,
+                                offering you the tools to breathe deeply, reflect clearly, and grow beautifully.
+                            </p>
+                            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '2rem' }}>
+                                <button
+                                    className="cta-button"
+                                    onClick={() => setShowAppointments(true)}
+                                >
+                                    View Active Appointments
+                                </button>
+                                <button
+                                    className="cta-button"
+                                    onClick={handleOpenReviews}
+                                >
+                                    View Reviews
+                                </button>
                             </div>
                         </div>
-                        <p className="welcome-text">
-                            A peaceful retreat for your mind to find its balance.
-                            In this safe harbor, we celebrate your journey toward wellness,
-                            offering you the tools to breathe deeply, reflect clearly, and grow beautifully.
-                        </p>
-                        <button
-                            className="cta-button"
-                            style={{ marginTop: '2rem' }}
-                            onClick={() => setShowAppointments(true)}
-                        >
-                            View Active Appointments
-                        </button>
-                    </div>
+                        <WelcomePage />
+                    </>
                 ) : (
                     <>
                         <button
@@ -680,12 +719,163 @@ const MainPage2 = () => {
                 </div>
             )}
 
+            {/* Reviews Modal */}
+            {showReviews && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    background: 'rgba(0, 0, 0, 0.7)',
+                    backdropFilter: 'blur(8px)',
+                    zIndex: 1100,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    padding: '1rem'
+                }} onClick={() => setShowReviews(false)}>
+                    <div className="glass-panel animate-fade-in" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '100%', padding: '2.5rem', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                            <h2 className="gradient-text" style={{ fontSize: '2rem', margin: 0 }}>Reviews of Users</h2>
+                            <button onClick={() => setShowReviews(false)} style={{ background: 'none', border: 'none', color: '#000000', cursor: 'pointer', fontSize: '2rem', lineHeight: 1 }}>&times;</button>
+                        </div>
+                        
+                        {reviews.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                    {reviews.filter(r => !r.isDeleted).map(review => {
+                                        const getRelativeDate = (dateString) => {
+                                            const date = new Date(dateString);
+                                            if (isNaN(date.getTime())) return "Recently";
+                                            const diffTime = Math.abs(new Date() - date);
+                                            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                                            if (diffDays === 0) return "Today";
+                                            if (diffDays === 1) return "1 day ago";
+                                            return `${diffDays} days ago`;
+                                        };
+
+                                        return (
+                                        <div key={review.id} style={{ 
+                                            padding: '1.5rem', 
+                                            background: 'rgba(0, 0, 0, 0.05)', 
+                                            borderRadius: '16px',
+                                            border: '1px solid rgba(0, 0, 0, 0.1)',
+                                            position: 'relative'
+                                        }}>
+                                            <button 
+                                                onClick={() => handleDeleteReview(review.id)}
+                                                style={{
+                                                    position: 'absolute',
+                                                    top: '1rem',
+                                                    right: '1rem',
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    color: '#ef4444',
+                                                    cursor: 'pointer',
+                                                    padding: '0.25rem'
+                                                }}
+                                                title="Delete Review"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                                                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                                                </svg>
+                                            </button>
+
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', paddingRight: '2rem' }}>
+                                                <strong style={{ color: '#000000', fontSize: '1.1rem' }}>{review.patientName || review.userName || "Anonymous"}</strong>
+                                                <span style={{ color: '#333333', fontSize: '0.85rem' }}>
+                                                    {getRelativeDate(review.date)}
+                                                </span>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '4px', marginBottom: '1rem' }}>
+                                                {[...Array(5)].map((_, i) => (
+                                                    <svg key={i} xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" 
+                                                        fill={i < review.rating ? "var(--color-orange)" : "none"} 
+                                                        stroke={i < review.rating ? "var(--color-orange)" : "rgba(0,0,0,0.2)"} 
+                                                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                                    </svg>
+                                                ))}
+                                            </div>
+                                            <p style={{ color: '#111111', margin: 0, lineHeight: '1.6' }}>"{review.text || review.comment || ""}"</p>
+                                        </div>
+                                        );
+                                    })}
+                                    {reviews.filter(r => !r.isDeleted).length === 0 && (
+                                        <p style={{ textAlign: 'center', color: '#666', fontStyle: 'italic' }}>No active reviews.</p>
+                                    )}
+                                </div>
+                                
+                                {reviews.some(r => r.isDeleted) && (
+                                    <div style={{ marginTop: '1rem', borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: '1.5rem' }}>
+                                        <h3 style={{ fontSize: '1.3rem', marginBottom: '1rem', color: '#666' }}>Deleted Reviews</h3>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                            {reviews.filter(r => r.isDeleted).map(review => {
+                                                const getRelativeDate = (dateString) => {
+                                                    const date = new Date(dateString);
+                                                    if (isNaN(date.getTime())) return "Recently";
+                                                    const diffTime = Math.abs(new Date() - date);
+                                                    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                                                    if (diffDays === 0) return "Today";
+                                                    if (diffDays === 1) return "1 day ago";
+                                                    return `${diffDays} days ago`;
+                                                };
+
+                                                return (
+                                                <div key={review.id} style={{ 
+                                                    padding: '1.5rem', 
+                                                    background: 'rgba(0, 0, 0, 0.02)', 
+                                                    borderRadius: '16px',
+                                                    border: '1px solid rgba(0, 0, 0, 0.05)',
+                                                    opacity: 0.7
+                                                }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                                        <strong style={{ color: '#000000', fontSize: '1.1rem' }}>{review.patientName || review.userName || "Anonymous"}</strong>
+                                                        <span style={{ color: '#333333', fontSize: '0.85rem' }}>
+                                                            {getRelativeDate(review.date)}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: '4px', marginBottom: '1rem' }}>
+                                                        {[...Array(5)].map((_, i) => (
+                                                            <svg key={i} xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" 
+                                                                fill={i < review.rating ? "var(--color-orange)" : "none"} 
+                                                                stroke={i < review.rating ? "var(--color-orange)" : "rgba(0,0,0,0.2)"} 
+                                                                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                                            </svg>
+                                                        ))}
+                                                    </div>
+                                                    <p style={{ color: '#111111', margin: 0, lineHeight: '1.6' }}>"{review.text || review.comment || ""}"</p>
+                                                </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#333333' }}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '1rem', opacity: 0.5 }}>
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                </svg>
+                                <p style={{ fontSize: '1.1rem', color: '#000000', fontWeight: 'bold' }}>No reviews yet.</p>
+                                <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>When patients leave reviews, they will appear here.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Decorative background elements wrapped to prevent overflow white space */}
             <div style={{
                 position: 'fixed',
                 top: 0,
                 left: 0,
-                width: '100vw',
+                right: 0,
                 height: '100vh',
                 pointerEvents: 'none',
                 overflow: 'hidden',

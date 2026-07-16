@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../App.css';
 import logo from '../assets/logo.jpg';
+import WelcomePage from './WelcomePage';
 import mainBg from '../assets/main.webp';
 
 const MainPage4 = () => {
@@ -51,30 +52,14 @@ const MainPage4 = () => {
 
     return (
         <div className="app-container" style={{
-            minHeight: '100vh',
-            height: 'auto',
+            backgroundImage: `url(${mainBg})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
             width: '100%',
-            background: 'transparent',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-start',
-            alignItems: 'stretch',
-            overflow: 'visible',
-            position: 'relative',
-            paddingBottom: '2rem'
+            maxWidth: '100vw',
+            minWidth: 0,
+            overflowX: 'hidden'
         }}>
-            {/* Fixed Background Layer */}
-            <div style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundImage: `url(${mainBg})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                zIndex: -1
-            }} />
             <header className="top-panel">
                 <div className="brand-section">
                     <img src={logo} alt="Aurexia Logo" className="app-logo-small" />
@@ -90,6 +75,7 @@ const MainPage4 = () => {
                     <button className="nav-text-link" onClick={() => navigate('/manage-counsellors')}>Counsellors</button>
                     <button className="nav-text-link" onClick={() => navigate('/manage-tutors')}>Tutors</button>
                     <button className="nav-text-link" onClick={() => navigate('/complaints-reports')}>Complaints and Reports</button>
+                    <button className="nav-text-link" onClick={() => navigate('/sound-sanctuary')}>Sound Sanctuary</button>
 
                     {/* Profile Icon */}
                     <button className="icon-only-btn" title="Profile" onClick={() => navigate('/profile')}>
@@ -261,7 +247,7 @@ const MainPage4 = () => {
             <main className="hero-section">
                 <div className="glass-panel welcome-card animate-fade-in">
                     <div className="welcome-header">
-                        <p className="user-greeting">Welcome Admin, {currentUser.name}</p>
+                        <p className="user-greeting">Welcome, {currentUser.name}</p>
                         <h1 className="welcome-title gradient-text">Welcome to Aurexia</h1>
                     </div>
                     <p className="welcome-text">
@@ -270,6 +256,7 @@ const MainPage4 = () => {
                         offering you the tools to breathe deeply, reflect clearly, and grow beautifully.
                     </p>
                 </div>
+                <WelcomePage />
             </main>
 
             {/* Decorative background elements */}

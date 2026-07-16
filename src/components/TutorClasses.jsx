@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import '../App.css';
 import classBg from '../assets/myclassesandevents.jpg';
@@ -44,7 +44,19 @@ const locationData = {
 
 const TutorClasses = () => {
     const navigate = useNavigate();
-    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+    const [currentUser, setCurrentUser] = useState(() => {
+        try {
+            const stored = localStorage.getItem('currentUser');
+            return stored ? JSON.parse(stored) : null;
+        } catch {
+            return null;
+        }
+    });
+
+    const { currentUserEmail, currentUserRole } = useMemo(() => ({
+        currentUserEmail: currentUser?.email || '',
+        currentUserRole: currentUser?.role || ''
+    }), [currentUser]);
 
     const [form, setForm] = useState({
         country: '',
@@ -53,6 +65,7 @@ const TutorClasses = () => {
         eventName: '',
         date: '',
         time: '',
+        duration: '',
         maxParticipants: '',
         feeType: 'Free',
         feeAmount: '',
@@ -60,8 +73,58 @@ const TutorClasses = () => {
         eventImage: ''
     });
 
+    const safeParseStorage = (key, fallback = []) => {
+        try {
+            const value = localStorage.getItem(key);
+            if (!value) return fallback;
+            return JSON.parse(value);
+        } catch {
+            return fallback;
+        }
+    };
+
+    const compressImage = (file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const maxDimension = 600;
+                    let width = img.width;
+                    let height = img.height;
+                    if (width > height && width > maxDimension) {
+                        height = (height * maxDimension) / width;
+                        width = maxDimension;
+                    } else if (height > width && height > maxDimension) {
+                        width = (width * maxDimension) / height;
+                        height = maxDimension;
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    let compressed = canvas.toDataURL('image/jpeg', 0.6);
+                    if (compressed.length > 220000) {
+                        compressed = canvas.toDataURL('image/jpeg', 0.45);
+                    }
+                    resolve(compressed);
+                };
+                img.onerror = reject;
+                img.src = event.target.result;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    };
+
     const [myClasses, setMyClasses] = useState([]);
+    const [cancelledSessions, setCancelledSessions] = useState(() => {
+        const cancelled = safeParseStorage('cancelled_classes', []);
+        return cancelled.filter(c => c.tutorEmail === currentUserEmail);
+    });
     const [message, setMessage] = useState('');
+    const [toast, setToast] = useState({ show: false, message: '' });
     const [showForm, setShowForm] = useState(false);
 
     // Event Management States
@@ -74,13 +137,15 @@ const TutorClasses = () => {
     const [participants, setParticipants] = useState([]);
 
     useEffect(() => {
-        if (!currentUser || currentUser.role !== 'tutor') {
+        if (!currentUserEmail || currentUserRole !== 'tutor') {
             navigate('/login');
             return;
         }
         const classes = JSON.parse(localStorage.getItem('tutor_created_classes') || '[]');
-        setMyClasses(classes.filter(c => c.tutorEmail === currentUser.email));
-    }, [currentUser, navigate]);
+        setMyClasses(classes.filter(c => c.tutorEmail === currentUserEmail));
+        const cancelled = JSON.parse(localStorage.getItem('cancelled_classes') || '[]');
+        setCancelledSessions(cancelled.filter(c => c.tutorEmail === currentUserEmail));
+    }, [navigate, currentUserEmail, currentUserRole]);
 
     const fetchParticipants = (classId) => {
         const allBookings = JSON.parse(localStorage.getItem('booked_classes') || '[]');
@@ -155,9 +220,22 @@ const TutorClasses = () => {
         const updatedClasses = allClasses.filter(c => c.id !== selectedClass.id);
         localStorage.setItem('tutor_created_classes', JSON.stringify(updatedClasses));
 
+        // Add to cancelled_classes
+        const allCancelledClasses = JSON.parse(localStorage.getItem('cancelled_classes') || '[]');
+        const eventParticipants = JSON.parse(localStorage.getItem('booked_classes') || '[]').filter(b => b.classId === selectedClass.id);
+        const cancelledClassData = {
+            ...selectedClass,
+            cancellationReason: cancelReason,
+            cancelledAt: new Date().toISOString(),
+            participants: eventParticipants
+        };
+        const updatedCancelled = [cancelledClassData, ...allCancelledClasses];
+        localStorage.setItem('cancelled_classes', JSON.stringify(updatedCancelled));
+        setCancelledSessions(updatedCancelled.filter(c => c.tutorEmail === currentUserEmail));
+
         // Notify all participants and remove their bookings
         const allBookings = JSON.parse(localStorage.getItem('booked_classes') || '[]');
-        const eventParticipants = allBookings.filter(b => b.classId === selectedClass.id);
+        const eventParticipantsForNotifications = allBookings.filter(b => b.classId === selectedClass.id);
 
         eventParticipants.forEach(p => {
             const notification = {
@@ -185,49 +263,103 @@ const TutorClasses = () => {
         setTimeout(() => setMessage(''), 3000);
     };
 
-    const handleImageChange = (e) => {
+    const handleImageChange = async (e) => {
         const file = e.target.files[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setForm({ ...form, eventImage: reader.result });
-            };
-            reader.readAsDataURL(file);
+            try {
+                const compressed = await compressImage(file);
+                setForm({ ...form, eventImage: compressed });
+            } catch (error) {
+                console.error('Image compression failed:', error);
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setForm({ ...form, eventImage: reader.result });
+                };
+                reader.readAsDataURL(file);
+            }
         }
     };
 
-    const handleCreateClass = (e) => {
-        e.preventDefault();
+    const validateClassForm = () => {
+        const errors = [];
+        if (!form.country) errors.push('Country is required.');
+        if (!form.state) errors.push('State is required.');
+        if (!form.city) errors.push('City is required.');
+        if (!form.eventName) errors.push('Event name is required.');
+        if (!form.date) errors.push('Date is required.');
+        if (!form.time) errors.push('Time is required.');
+        if (!form.duration) errors.push('Duration is required.');
+        if (!form.maxParticipants) errors.push('Maximum participants is required.');
+        if (!form.description) errors.push('Description is required.');
+        if (form.feeType === 'Paid' && !form.feeAmount) errors.push('Fee amount is required for paid sessions.');
+        return errors;
+    };
+
+    const createClassNow = () => {
+        const errors = validateClassForm();
+        if (errors.length > 0) {
+            const errorText = errors.join(' ');
+            console.warn('TutorClasses create validation failed:', errors, form);
+            setMessage(errorText);
+            return;
+        }
+
+        if (!currentUser || !currentUser.email || !currentUser.name) {
+            alert('Unable to identify your account. Please login again.');
+            navigate('/login');
+            return;
+        }
 
         const newClass = {
             id: Date.now(),
-            ...form,
+            country: form.country,
+            state: form.state,
+            city: form.city,
+            eventName: form.eventName,
+            date: form.date,
+            time: form.time,
+            duration: form.duration,
+            maxParticipants: form.maxParticipants,
+            feeType: form.feeType,
+            feeAmount: form.feeAmount,
+            description: form.description,
+            eventImage: form.eventImage,
             tutorName: currentUser.name,
             tutorEmail: currentUser.email,
             createdAt: new Date().toISOString()
         };
 
-        const allAvailableClasses = JSON.parse(localStorage.getItem('tutor_created_classes') || '[]');
+        const allAvailableClasses = safeParseStorage('tutor_created_classes', []);
         const updatedAll = [newClass, ...allAvailableClasses];
-        localStorage.setItem('tutor_created_classes', JSON.stringify(updatedAll));
+        try {
+            localStorage.setItem('tutor_created_classes', JSON.stringify(updatedAll));
+        } catch (error) {
+            console.error('Failed to save class:', error);
+            alert('Unable to save the class because local storage is full. Please clear some data or remove large images.');
+            return;
+        }
 
-        setMyClasses([newClass, ...myClasses]);
-        setMessage('Class created successfully!');
+        const refreshedClasses = safeParseStorage('tutor_created_classes', []);
+        setMyClasses(refreshedClasses.filter(c => c.tutorEmail === currentUser.email));
         setShowForm(false);
+        setMessage('Class created successfully!');
+        setToast({ show: true, message: 'Class created successfully!' });
+        setTimeout(() => setToast({ show: false, message: '' }), 3000);
 
-        // Reset specific fields
         setForm({
-            ...form,
+            country: '',
+            state: '',
+            city: '',
             eventName: '',
             date: '',
             time: '',
+            duration: '',
             maxParticipants: '',
+            feeType: 'Free',
             feeAmount: '',
             description: '',
             eventImage: ''
         });
-
-        setTimeout(() => setMessage(''), 3000);
     };
 
     return (
@@ -258,7 +390,16 @@ const TutorClasses = () => {
             }}>
 
                 <div style={{ width: '100%', maxWidth: '1000px', display: 'flex', flexDirection: 'column', gap: '3rem' }}>
-                    <h1 className="title gradient-text" style={{ fontSize: '3.5rem', textAlign: 'center', fontWeight: '900' }}>My Classes and Events</h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'flex-start' }}>
+                        <button
+                            className="nav-btn"
+                            onClick={() => navigate('/main3')}
+                            style={{ padding: '0.5rem 0.8rem', fontSize: '0.95rem' }}
+                        >
+                            ← Back
+                        </button>
+                        <h1 className="title gradient-text" style={{ fontSize: '3.5rem', textAlign: 'center', fontWeight: '900', flex: 1, margin: 0 }}>My Classes and Events</h1>
+                    </div>
 
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
                         <button
@@ -272,12 +413,12 @@ const TutorClasses = () => {
 
                     {/* Create Class Section */}
                     {showForm && (
-                        <div className="glass-panel animate-fade-in" style={{ padding: '3rem' }}>
+                        <div className="glass-panel animate-fade-in" style={{ padding: '3rem', position: 'relative', zIndex: 10, pointerEvents: 'auto' }}>
                             <h2 className="welcome-title gradient-text" style={{ fontSize: '2.5rem', marginBottom: '2rem' }}>Create a Class</h2>
 
                             {message && <p style={{ color: 'var(--color-green)', fontWeight: '700', textAlign: 'center', marginBottom: '1.5rem' }}>{message}</p>}
 
-                            <form onSubmit={handleCreateClass} style={{ display: 'grid', gap: '1.5rem' }}>
+                            <div style={{ display: 'grid', gap: '1.5rem' }}>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                                     <div>
                                         <label style={{ color: 'white', display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Country</label>
@@ -358,8 +499,19 @@ const TutorClasses = () => {
                                         />
                                     </div>
                                 </div>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div>
+                                        <label style={{ color: 'white', display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Duration</label>
+                                        <input
+                                            type="text"
+                                            className="glass-input"
+                                            placeholder="e.g. 60 mins"
+                                            style={{ background: 'white', color: 'black' }}
+                                            value={form.duration}
+                                            onChange={(e) => setForm({ ...form, duration: e.target.value })}
+                                            required
+                                        />
+                                    </div>
                                     <div>
                                         <label style={{ color: 'white', display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Max Participants</label>
                                         <input
@@ -372,6 +524,9 @@ const TutorClasses = () => {
                                             required
                                         />
                                     </div>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <div>
                                         <label style={{ color: 'white', display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Fee Type</label>
                                         <select
@@ -433,10 +588,10 @@ const TutorClasses = () => {
                                     />
                                 </div>
 
-                                <button type="submit" className="nav-btn logout-primary-btn" style={{ width: '100%', padding: '1.2rem', fontSize: '1.3rem', borderRadius: '15px' }}>
-                                    Create Class
+                                <button type="button" onClick={createClassNow} className="nav-btn logout-primary-btn" style={{ width: '100%', padding: '1.2rem', fontSize: '1.3rem', borderRadius: '15px', position: 'relative', zIndex: 20, pointerEvents: 'auto', cursor: 'pointer' }}>
+                                    Create Session
                                 </button>
-                            </form>
+                            </div>
                         </div>
                     )}
 
@@ -494,11 +649,66 @@ const TutorClasses = () => {
                             </div>
                         )}
                     </div>
+
+                    {cancelledSessions.length > 0 && (
+                        <div id="cancelled-sessions" style={{ marginTop: '4rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '2rem', borderLeft: '5px solid #ef4444', paddingLeft: '1.5rem' }}>
+                                <h2 className="welcome-title gradient-text" style={{ fontSize: '2.5rem', margin: 0 }}>Cancelled Sessions</h2>
+                                <div style={{
+                                    background: 'rgba(239, 68, 68, 0.2)',
+                                    color: '#ef4444',
+                                    padding: '4px 15px',
+                                    borderRadius: '50px',
+                                    fontSize: '1rem',
+                                    fontWeight: '700',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)'
+                                }}>
+                                    {cancelledSessions.length} Cancelled
+                                </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                                {cancelledSessions.map(session => (
+                                    <div key={session.id} className="glass-panel animate-fade-in" style={{ padding: '0', borderRadius: '24px', overflow: 'hidden', border: '1px solid rgba(239,68,68,0.2)' }}>
+                                        {session.eventImage && (
+                                            <div style={{ height: '180px', width: '100%' }}>
+                                                <img src={session.eventImage} alt={session.eventName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            </div>
+                                        )}
+                                        <div style={{ padding: '1.5rem' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                                                <div>
+                                                    <h3 style={{ margin: 0, color: 'black', fontSize: '1.4rem' }}>{session.eventName}</h3>
+                                                    <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', color: '#ef4444', fontWeight: '700' }}>Cancelled on {new Date(session.cancelledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                                                </div>
+                                                <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '4px 10px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: '700' }}>Cancelled</span>
+                                            </div>
+                                            <p style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: 'rgba(0,0,0,0.75)', lineHeight: '1.6' }}>{session.description}</p>
+                                            <p style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: 'rgba(0,0,0,0.65)' }}><strong>Reason:</strong> {session.cancellationReason || 'No reason provided.'}</p>
+                                            <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(0,0,0,0.55)' }}>Location: {session.city}, {session.state}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="glow-orb orb-1"></div>
                 <div className="glow-orb orb-2"></div>
             </div>
+
+                {/* Toast Notification */}
+                {toast.show && (
+                    <div className="toast-container">
+                        <div className="toast-message">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <path d="M8 12.5l2.5 2.5 5-5"></path>
+                            </svg>
+                            {toast.message}
+                        </div>
+                    </div>
+                )}
 
             {/* Event Detail Modal */}
             {showDetailModal && selectedClass && (

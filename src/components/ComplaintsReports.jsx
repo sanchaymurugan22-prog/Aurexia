@@ -159,7 +159,7 @@ const ComplaintsReports = () => {
             <button
                 onClick={handleBack}
                 style={{
-                    position: 'absolute',
+                    position: 'fixed',
                     top: '2rem',
                     left: '2rem',
                     background: 'rgba(255, 255, 255, 0.1)',
@@ -173,7 +173,7 @@ const ComplaintsReports = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    zIndex: 10
+                    zIndex: 1000
                 }}
                 className="animate-fade-in"
             >

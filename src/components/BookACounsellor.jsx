@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../App.css';
 import mainBg from '../assets/bookacounsellor.jpg';
@@ -21,6 +21,14 @@ const BookACounsellor = () => {
     const [appointmentToCancel, setAppointmentToCancel] = useState(null);
     const [cancellationReason, setCancellationReason] = useState('');
     const currentUser = JSON.parse(localStorage.getItem('currentUser')) || { name: 'Guest User', education: 'Student', email: 'guest@aurexia.com' };
+
+    // Review States
+    const [showReviewModal, setShowReviewModal] = useState(false);
+    const [selectedReviewCounsellor, setSelectedReviewCounsellor] = useState(null);
+    const [counsellorReviews, setCounsellorReviews] = useState([]);
+    const [newReviewText, setNewReviewText] = useState('');
+    const [newReviewRating, setNewReviewRating] = useState(5);
+    const [showReviewForm, setShowReviewForm] = useState(false);
 
     const [appointments, setAppointments] = useState(() => {
         const saved = localStorage.getItem('appointments');
@@ -321,7 +329,7 @@ const BookACounsellor = () => {
             .map(u => ({
                 id: `reg_${u.email}`,
                 name: `Dr. ${u.name}`,
-                specialization: 'Mental Health Professional', // Default spec
+                specialization: u.designation || u.specialization || 'Mental Health Professional', // Use designation from Profile
                 education: u.education || 'Practitioner',
                 hospital: u.hospital || 'Private Clinic',
                 experience: u.experience || 'Experienced',
@@ -334,9 +342,75 @@ const BookACounsellor = () => {
         // 2. Filter mock counsellors
         const mockResults = mockCounsellors.filter(c => c.city === selectedCity);
 
-        // 3. Combine results (Registered ones first)
-        setFilteredCounsellors([...registeredCounsellors, ...mockResults]);
+        // 3. Combine results and calculate dynamic ratings
+        const combined = [...registeredCounsellors, ...mockResults];
+        
+        const withDynamicRatings = combined.map(c => {
+            const allReviews = JSON.parse(localStorage.getItem(`reviews_${c.id}`)) || [];
+            let dynamicRating = c.rating;
+            // Rating is ALWAYS based on ALL reviews (including deleted ones)
+            if (allReviews.length > 0) {
+                const sum = allReviews.reduce((acc, rev) => acc + rev.rating, 0);
+                dynamicRating = (sum / allReviews.length).toFixed(1);
+            }
+            const visibleReviews = allReviews.filter(r => !r.isDeleted);
+            return {
+                ...c,
+                dynamicRating: dynamicRating,
+                reviewCount: visibleReviews.length
+            };
+        });
+
+        setFilteredCounsellors(withDynamicRatings);
         setShowResults(true);
+    };
+
+    const handleOpenReviews = (counsellor) => {
+        setSelectedReviewCounsellor(counsellor);
+        const allReviews = JSON.parse(localStorage.getItem(`reviews_${counsellor.id}`)) || [];
+        // Only show non-deleted reviews to users
+        const visibleReviews = allReviews.filter(r => !r.isDeleted);
+        setCounsellorReviews(visibleReviews);
+        setShowReviewModal(true);
+        setShowReviewForm(false);
+        setNewReviewText('');
+        setNewReviewRating(5);
+    };
+
+    const handleSubmitReview = () => {
+        if (!newReviewText.trim()) return;
+        
+        const newReview = {
+            id: Date.now(),
+            patientName: currentUser.name,
+            rating: newReviewRating,
+            text: newReviewText,
+            date: new Date().toLocaleDateString()
+        };
+        
+        const updatedReviews = [newReview, ...counsellorReviews];
+        localStorage.setItem(`reviews_${selectedReviewCounsellor.id}`, JSON.stringify(updatedReviews));
+        setCounsellorReviews(updatedReviews);
+        
+        // Update the filteredCounsellors array so the UI rating updates immediately
+        const updatedCounsellors = filteredCounsellors.map(c => {
+            if (c.id === selectedReviewCounsellor.id) {
+                const sum = updatedReviews.reduce((acc, rev) => acc + rev.rating, 0);
+                return {
+                    ...c,
+                    dynamicRating: (sum / updatedReviews.length).toFixed(1),
+                    reviewCount: updatedReviews.length
+                };
+            }
+            return c;
+        });
+        setFilteredCounsellors(updatedCounsellors);
+        
+        setShowReviewForm(false);
+        setNewReviewText('');
+        setNewReviewRating(5);
+        setToast({ show: true, message: 'Review submitted successfully!' });
+        setTimeout(() => setToast({ show: false, message: '' }), 3000);
     };
 
 
@@ -517,9 +591,14 @@ const BookACounsellor = () => {
 
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 0', borderTop: '1px solid rgba(255,255,255,0.1)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                                         <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Exp: <strong style={{ color: 'var(--text-primary)' }}>{counsellor.experience}</strong></span>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <div 
+                                            style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', padding: '4px 8px', background: 'rgba(255,165,0,0.1)', borderRadius: '12px' }}
+                                            onClick={() => handleOpenReviews(counsellor)}
+                                            title="Click to view reviews"
+                                        >
                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="var(--color-orange)" stroke="var(--color-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                                            <span style={{ fontWeight: '800', fontSize: '1rem', color: 'var(--text-primary)' }}>{counsellor.rating}</span>
+                                            <span style={{ fontWeight: '800', fontSize: '1rem', color: 'var(--color-orange)' }}>{counsellor.dynamicRating || counsellor.rating}</span>
+                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>({counsellor.reviewCount || 0})</span>
                                         </div>
                                     </div>
 
@@ -874,6 +953,121 @@ const BookACounsellor = () => {
                 </div>
             )}
 
+            {/* Reviews Modal */}
+            {showReviewModal && selectedReviewCounsellor && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    background: 'rgba(0, 0, 0, 0.7)',
+                    backdropFilter: 'blur(8px)',
+                    zIndex: 1100,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    padding: '1rem'
+                }} onClick={() => setShowReviewModal(false)}>
+                    <div className="glass-panel animate-fade-in" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', width: '100%', padding: '2rem', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                            <h2 style={{ margin: 0, color: 'var(--text-primary)' }}>Reviews for {selectedReviewCounsellor.name}</h2>
+                            <button onClick={() => setShowReviewModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
+                        </div>
+                        
+                        {!showReviewForm ? (
+                            <>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+                                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: 'var(--color-orange)' }}>
+                                        {selectedReviewCounsellor.dynamicRating || selectedReviewCounsellor.rating}
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                            {[1,2,3,4,5].map(star => (
+                                                <svg key={star} xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill={star <= Math.round(selectedReviewCounsellor.dynamicRating || selectedReviewCounsellor.rating) ? "var(--color-orange)" : "none"} stroke="var(--color-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                                            ))}
+                                        </div>
+                                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Based on {counsellorReviews.length} reviews</span>
+                                    </div>
+                                    <button 
+                                        className="nav-btn primary-btn" 
+                                        style={{ marginLeft: 'auto', padding: '0.5rem 1rem' }}
+                                        onClick={() => setShowReviewForm(true)}
+                                    >
+                                        Write a Review
+                                    </button>
+                                </div>
+                                
+                                <div style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '10px' }}>
+                                    {counsellorReviews.length > 0 ? (
+                                        counsellorReviews.map(rev => {
+                                            const getRelDate = (dateString) => {
+                                                const date = new Date(dateString);
+                                                if (isNaN(date.getTime())) return 'Recently';
+                                                const diffDays = Math.floor(Math.abs(new Date() - date) / (1000 * 60 * 60 * 24));
+                                                if (diffDays === 0) return 'Today';
+                                                if (diffDays === 1) return '1 day ago';
+                                                return `${diffDays} days ago`;
+                                            };
+                                            return (
+                                            <div key={rev.id} style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                                    <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{rev.patientName || rev.userName || 'Anonymous'}</span>
+                                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{getRelDate(rev.date)}</span>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '2px', marginBottom: '0.5rem' }}>
+                                                    {[1,2,3,4,5].map(star => (
+                                                        <svg key={star} xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill={star <= rev.rating ? "var(--color-orange)" : "none"} stroke="var(--color-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                                                    ))}
+                                                </div>
+                                                <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>{rev.text || rev.comment || ''}</p>
+                                            </div>
+                                            );
+                                        })
+                                    ) : (
+                                        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem 0' }}>No reviews yet. Be the first to review!</p>
+                                    )}
+                                </div>
+                            </>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Rating</label>
+                                    <div style={{ display: 'flex', gap: '8px', cursor: 'pointer' }}>
+                                        {[1,2,3,4,5].map(star => (
+                                            <svg 
+                                                key={star} 
+                                                onClick={() => setNewReviewRating(star)}
+                                                xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" 
+                                                fill={star <= newReviewRating ? "var(--color-orange)" : "none"} 
+                                                stroke="var(--color-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                                                style={{ transition: 'all 0.2s' }}
+                                            >
+                                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                            </svg>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Your Review</label>
+                                    <textarea 
+                                        className="glass-input"
+                                        value={newReviewText}
+                                        onChange={(e) => setNewReviewText(e.target.value)}
+                                        placeholder="Share your experience..."
+                                        style={{ minHeight: '100px', resize: 'vertical' }}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                                    <button className="nav-btn" style={{ flex: 1, background: 'rgba(255,255,255,0.1)' }} onClick={() => setShowReviewForm(false)}>Cancel</button>
+                                    <button className="nav-btn primary-btn" style={{ flex: 1 }} onClick={handleSubmitReview} disabled={!newReviewText.trim()}>Submit Review</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Cancellation Modal */}
             {showCancelModal && (
                 <div style={{
@@ -952,10 +1146,9 @@ const BookACounsellor = () => {
             {toast.show && (
                 <div className="toast-container">
                     <div className="toast-message">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="15" y1="9" x2="9" y2="15"></line>
-                            <line x1="9" y1="9" x2="15" y2="15"></line>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 8px rgba(74, 222, 128, 0.4))' }}>
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
                         </svg>
                         {toast.message}
                     </div>

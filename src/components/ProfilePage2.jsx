@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { db } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
 import '../App.css';
 import logo from '../assets/logo.jpg';
 import mainBg from '../assets/main.webp';
@@ -64,6 +66,7 @@ const ProfilePage2 = () => {
         role: '',
         phone: '',
         education: '',
+        designation: '',
         bio: '',
         hospital: '',
         experience: '',
@@ -84,6 +87,7 @@ const ProfilePage2 = () => {
                 ...currentUser,
                 phone: currentUser.phone || '',
                 education: currentUser.education || '',
+                designation: currentUser.designation || '',
                 bio: currentUser.bio || '',
                 hospital: currentUser.hospital || '',
                 experience: currentUser.experience || '',
@@ -99,20 +103,42 @@ const ProfilePage2 = () => {
         }
     }, [navigate]);
 
-    const handleRegister = () => {
-        // 1. Update the master users list
-        const users = JSON.parse(localStorage.getItem('users')) || [];
-        const userIndex = users.findIndex(u => u.email === originalEmail);
+    const getCollectionForRole = (userRole) => {
+        switch (userRole) {
+            case 'counsellor': return 'counsellors';
+            case 'tutor': return 'tutors';
+            case 'admin': return 'admins';
+            case 'public':
+            default: return 'users';
+        }
+    };
 
-        if (userIndex !== -1) {
-            const updatedUser = { ...users[userIndex], ...user, isRegisteredPractitioner: true };
-            users[userIndex] = updatedUser;
-            localStorage.setItem('users', JSON.stringify(users));
+    const handleRegister = async () => {
+        try {
+            const users = JSON.parse(localStorage.getItem('users')) || [];
+            const userIndex = users.findIndex(u => u.email === originalEmail);
 
-            // 2. Update the session currentUser
+            let updatedUser = { ...user, isRegisteredPractitioner: true };
+
+            if (userIndex !== -1) {
+                updatedUser = { ...users[userIndex], ...user, isRegisteredPractitioner: true };
+                users[userIndex] = updatedUser;
+                localStorage.setItem('users', JSON.stringify(users));
+            }
+
+            // Update the session currentUser
             localStorage.setItem('currentUser', JSON.stringify(updatedUser));
 
+            // Save changes to Firestore in the correct role-specific collection
+            if (updatedUser.uid) {
+                const collectionName = getCollectionForRole(updatedUser.role);
+                await setDoc(doc(db, collectionName, updatedUser.uid), updatedUser, { merge: true });
+            }
+
             setMessage('Registered as Practicioner successfully!');
+            setTimeout(() => setMessage(''), 3000);
+        } catch (error) {
+            setMessage(`Registration Error: ${error.message}`);
             setTimeout(() => setMessage(''), 3000);
         }
     };
@@ -128,23 +154,34 @@ const ProfilePage2 = () => {
         }
     };
 
-    const handleUpdate = (e) => {
-
+    const handleUpdate = async (e) => {
         e.preventDefault();
 
-        // 1. Update the master users list
-        const users = JSON.parse(localStorage.getItem('users')) || [];
-        const userIndex = users.findIndex(u => u.email === originalEmail);
+        try {
+            const users = JSON.parse(localStorage.getItem('users')) || [];
+            const userIndex = users.findIndex(u => u.email === originalEmail);
 
-        if (userIndex !== -1) {
-            const updatedUser = { ...users[userIndex], ...user };
-            users[userIndex] = updatedUser;
-            localStorage.setItem('users', JSON.stringify(users));
+            let updatedUser = { ...user };
 
-            // 2. Update the session currentUser
+            if (userIndex !== -1) {
+                updatedUser = { ...users[userIndex], ...user };
+                users[userIndex] = updatedUser;
+                localStorage.setItem('users', JSON.stringify(users));
+            }
+
+            // Update the session currentUser
             localStorage.setItem('currentUser', JSON.stringify(updatedUser));
 
+            // Save changes to Firestore in the correct role-specific collection
+            if (updatedUser.uid) {
+                const collectionName = getCollectionForRole(updatedUser.role);
+                await setDoc(doc(db, collectionName, updatedUser.uid), updatedUser, { merge: true });
+            }
+
             setMessage('Counsellor Profile updated successfully!');
+            setTimeout(() => setMessage(''), 3000);
+        } catch (error) {
+            setMessage(`Error updating profile: ${error.message}`);
             setTimeout(() => setMessage(''), 3000);
         }
     };
@@ -331,28 +368,40 @@ const ProfilePage2 = () => {
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                             <div className="form-group" style={{ marginBottom: '0' }}>
-                                <label style={{ fontSize: '0.85rem' }}>Hospital/Clinic Name</label>
+                                <label style={{ fontSize: '0.85rem' }}>Hospital / Practice Name</label>
                                 <input
                                     type="text"
                                     value={user.hospital}
                                     onChange={(e) => setUser({ ...user, hospital: e.target.value })}
                                     className="glass-input"
                                     style={{ padding: '10px 14px', marginBottom: '0' }}
-                                    placeholder="Medical Institution"
+                                    placeholder="Where do you practice?"
                                 />
                             </div>
 
                             <div className="form-group" style={{ marginBottom: '0' }}>
-                                <label style={{ fontSize: '0.85rem' }}>Years of Experience</label>
+                                <label style={{ fontSize: '0.85rem' }}>Designation</label>
                                 <input
                                     type="text"
-                                    value={user.experience}
-                                    onChange={(e) => setUser({ ...user, experience: e.target.value })}
+                                    value={user.designation}
+                                    onChange={(e) => setUser({ ...user, designation: e.target.value })}
                                     className="glass-input"
                                     style={{ padding: '10px 14px', marginBottom: '0' }}
-                                    placeholder="e.g. 5+ Years"
+                                    placeholder="e.g. Senior Specialist"
                                 />
                             </div>
+                        </div>
+
+                        <div className="form-group" style={{ marginBottom: '0' }}>
+                            <label style={{ fontSize: '0.85rem' }}>Years of Experience</label>
+                            <input
+                                type="text"
+                                value={user.experience}
+                                onChange={(e) => setUser({ ...user, experience: e.target.value })}
+                                className="glass-input"
+                                style={{ padding: '10px 14px', marginBottom: '0' }}
+                                placeholder="e.g. 5+ Years"
+                            />
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>

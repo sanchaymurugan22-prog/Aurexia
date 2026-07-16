@@ -12,7 +12,72 @@
 </head>
 
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <style>
+      .initial-loader-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background: linear-gradient(135deg, #f0fdf4 0%, #ecfeff 50%, #e0f2fe 100%);
+        font-family: 'Nunito', sans-serif;
+        color: #0369a1;
+      }
+      .loader-logo-pulse {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.6);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        animation: loader-pulse 2s infinite ease-in-out;
+        margin-bottom: 20px;
+      }
+      .loader-logo-pulse svg {
+        width: 40px;
+        height: 40px;
+        stroke: #0284c7;
+      }
+      .loader-text {
+        font-size: 1.25rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        animation: loader-text-fade 1.5s infinite ease-in-out alternate;
+      }
+      @keyframes loader-pulse {
+        0%, 100% {
+          transform: scale(0.95);
+          box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.4);
+        }
+        50% {
+          transform: scale(1.05);
+          box-shadow: 0 0 0 20px rgba(56, 189, 248, 0);
+        }
+      }
+      @keyframes loader-text-fade {
+        from { opacity: 0.6; }
+        to { opacity: 1; }
+      }
+    </style>
+    <div class="initial-loader-container">
+      <div class="loader-logo-pulse">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
+      </div>
+      <div class="loader-text">Connecting to server...</div>
+    </div>
+  </div>
   <script type="module" src="/src/main.jsx"></script>
 </body>
 

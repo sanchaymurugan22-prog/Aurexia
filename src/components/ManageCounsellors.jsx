@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { db } from '../firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import '../App.css';
 import mainBg from '../assets/main.webp';
 import counsellorsBg from '../assets/counsellors.jpg';
@@ -20,9 +22,16 @@ const ManageCounsellors = () => {
     });
 
     useEffect(() => {
-        const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
-        const filtered = allUsers.filter(u => u.role === 'counsellor');
-        setCounsellors(filtered);
+        const fetchCounsellors = async () => {
+            try {
+                const snapshot = await getDocs(collection(db, 'counsellors'));
+                const data = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
+                setCounsellors(data);
+            } catch (error) {
+                console.error('Error fetching counsellors:', error);
+            }
+        };
+        fetchCounsellors();
     }, []);
 
     useEffect(() => {

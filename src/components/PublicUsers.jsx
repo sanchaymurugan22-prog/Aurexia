@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { db } from '../firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import '../App.css';
 import mainBg from '../assets/main.webp';
 import publicUsersBg from '../assets/publicusers.avif';
@@ -20,9 +22,17 @@ const PublicUsers = () => {
     });
 
     useEffect(() => {
-        const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
-        const filtered = allUsers.filter(u => u.role === 'public');
-        setPublicUsers(filtered);
+        const fetchUsers = async () => {
+            try {
+                const snapshot = await getDocs(collection(db, 'users'));
+                const users = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
+                // Only show users with role 'public' (safety filter)
+                setPublicUsers(users.filter(u => u.role === 'public'));
+            } catch (error) {
+                console.error('Error fetching public users:', error);
+            }
+        };
+        fetchUsers();
     }, []);
 
     useEffect(() => {

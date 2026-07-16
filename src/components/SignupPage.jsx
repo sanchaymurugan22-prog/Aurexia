@@ -1,7 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useLanguage } from '../context/LanguageContext.jsx';
+import { auth, db } from '../firebase';
+import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import '../App.css';
 import logo from '../assets/logo.jpg';
+import loginBg from '../assets/login.jpg';
 
 const SignupPage = () => {
     const navigate = useNavigate();
@@ -11,40 +16,87 @@ const SignupPage = () => {
     const [role, setRole] = useState('public');
     const [showPassword, setShowPassword] = useState(false);
 
-    const handleSignup = (e) => {
-        e.preventDefault();
-        const newUser = { name, email, password, role, loginCount: 0 };
+    const { t } = useLanguage();
 
-        // Get existing users from localStorage or initialize empty array
-        const existingUsers = JSON.parse(localStorage.getItem('users')) || [];
-
-        // Check if user already exists
-        if (existingUsers.some(u => u.email === email)) {
-            alert('User with this email already exists!');
-            return;
+    const getDashboardPath = (userRole) => {
+        switch (userRole) {
+            case 'counsellor':
+                return '/main2';
+            case 'tutor':
+                return '/main3';
+            case 'admin':
+                return '/main4';
+            default:
+                return '/main';
         }
+    };
 
-        // Add new user to the list
-        const updatedUsers = [...existingUsers, newUser];
-        localStorage.setItem('users', JSON.stringify(updatedUsers));
+    const getCollectionForRole = (userRole) => {
+        switch (userRole) {
+            case 'counsellor': return 'counsellors';
+            case 'tutor': return 'tutors';
+            case 'admin': return 'admins';
+            case 'public':
+            default: return 'users';
+        }
+    };
 
-        navigate('/login');
+    useEffect(() => {
+        const existingUser = JSON.parse(localStorage.getItem('currentUser'));
+        if (existingUser) {
+            navigate(getDashboardPath(existingUser.role));
+        }
+    }, [navigate]);
+
+    const handleSignup = async (e) => {
+        e.preventDefault();
+        try {
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const user = userCredential.user;
+
+            const newUser = { name, email, role, loginCount: 0, uid: user.uid };
+            
+            // Save to Firestore role-specific collection
+            const collectionName = getCollectionForRole(role);
+            await setDoc(doc(db, collectionName, user.uid), newUser);
+
+            const existingUsers = JSON.parse(localStorage.getItem('users')) || [];
+            
+            // Remove old user if it existed but without auth
+            const filteredUsers = existingUsers.filter(u => u.email !== email);
+            const updatedUsers = [...filteredUsers, newUser];
+            
+            localStorage.setItem('users', JSON.stringify(updatedUsers));
+            
+            // Sign out the user so they have to login again
+            await signOut(auth);
+            
+            alert('Sign in successful! Please log in with your new credentials.');
+            navigate('/login');
+        } catch (error) {
+            alert(error.message);
+        }
     };
 
     return (
-        <div className="scrollable-app-container">
-            <div className="glass-panel form-card animate-fade-in">
+        <div className="fixed-screen-container" style={{
+            backgroundImage: `url(${loginBg})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat'
+        }}>
+            <div className="glass-panel form-card animate-fade-in" style={{ backgroundColor: 'rgba(255, 255, 255, 0.85)' }}>
                 <div className="brand-header">
                     <img src={logo} alt="Aurexia Logo" className="app-logo-small" />
                     <h1 className="title-small gradient-text">Aurexia</h1>
-                    <p className="tagline-small">Lightness for the mind</p>
+                    <p className="tagline-small">{t('lightnessForMind')}</p>
                 </div>
 
-                <h2>Sign Up</h2>
+                <h2>{t('signup')}</h2>
 
                 <form onSubmit={handleSignup} className="auth-form">
                     <div className="form-group">
-                        <label>Name</label>
+                        <label>{t('name')}</label>
                         <input
                             type="text"
                             value={name}
@@ -54,7 +106,7 @@ const SignupPage = () => {
                         />
                     </div>
                     <div className="form-group">
-                        <label>Email</label>
+                        <label>{t('email')}</label>
                         <input
                             type="email"
                             value={email}
@@ -64,21 +116,21 @@ const SignupPage = () => {
                         />
                     </div>
                     <div className="form-group">
-                        <label>Role</label>
+                        <label>{t('role')}</label>
                         <select
                             value={role}
                             onChange={(e) => setRole(e.target.value)}
                             className="glass-input role-select"
                             required
                         >
-                            <option value="public">Public</option>
-                            <option value="counsellor">Counsellor</option>
-                            <option value="tutor">Tutor</option>
-                            <option value="admin">Admin</option>
+                            <option value="public">{t('public')}</option>
+                            <option value="counsellor">{t('counsellor')}</option>
+                            <option value="tutor">{t('tutor')}</option>
+                            <option value="admin">{t('admin')}</option>
                         </select>
                     </div>
                     <div className="form-group">
-                        <label>Password</label>
+                        <label>{t('password')}</label>
                         <div className="password-input-wrapper">
                             <input
                                 type={showPassword ? "text" : "password"}
@@ -91,7 +143,7 @@ const SignupPage = () => {
                                 type="button"
                                 className="password-toggle-btn"
                                 onClick={() => setShowPassword(!showPassword)}
-                                aria-label={showPassword ? "Hide password" : "Show password"}
+                                aria-label={showPassword ? t('hidePassword') : t('showPassword')}
                             >
                                 {showPassword ? (
                                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -107,11 +159,11 @@ const SignupPage = () => {
                             </button>
                         </div>
                     </div>
-                    <button type="submit" className="cta-button full-width">Sign Up</button>
+                    <button type="submit" className="cta-button full-width">{t('signup')}</button>
                 </form>
 
                 <p className="switch-auth">
-                    Already have an account? <Link to="/login">Login here</Link>
+                    {t('alreadyHaveAccount')} <Link to="/login">{t('loginHere')}</Link>
                 </p>
             </div>
 

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../App.css';
 import logo from '../assets/logo.jpg';
-import mainBg from '../assets/main.webp';
+import mainBg from '../assets/classes.jpg';
 import meditationImg from '../assets/aboutpage.jpg';
 import yogaImg from '../assets/q8imle.jpg';
 import wellnessImg from '../assets/videos.jpg';
@@ -32,10 +32,19 @@ const ClassesPage = () => {
 
     const currentUser = JSON.parse(localStorage.getItem('currentUser')) || { name: 'Guest User', education: 'Student', email: 'guest@aurexia.com' };
 
-    const [bookedClasses, setBookedClasses] = useState(() => {
+    const [allBookings, setAllBookings] = useState(() => {
         const saved = localStorage.getItem('booked_classes');
-        return saved ? JSON.parse(saved).filter(a => a.userEmail === currentUser.email) : [];
+        return saved ? JSON.parse(saved) : [];
     });
+
+    const [bookedClasses, setBookedClasses] = useState(() => {
+        return allBookings.filter(a => a.userEmail === currentUser.email);
+    });
+
+    const cancelledEvents = useMemo(() => {
+        const cancelled = JSON.parse(localStorage.getItem('cancelled_classes') || '[]');
+        return cancelled.filter(event => Array.isArray(event.participants) && event.participants.some(p => p.userEmail === currentUser.email));
+    }, [currentUser.email, allBookings.length]);
 
     React.useEffect(() => {
         if (window.location.hash === '#my-classes') {
@@ -172,6 +181,7 @@ const ClassesPage = () => {
                         time: times[i % times.length],
                         type: template.type,
                         city: cityKey,
+                        maxParticipants: 20 + (i * 5),
                         price: i % 2 === 0 ? 'Free' : `${currency.symbol}${priceValue}`,
                         image: `${typeImage}?auto=format&fit=crop&q=80&w=400`
                     });
@@ -189,11 +199,12 @@ const ClassesPage = () => {
             description: tc.description,
             instructor: tc.tutorName,
             tutorEmail: tc.tutorEmail, // Store tutor email for notifications
-            duration: '60 mins', // Default or add field
+            duration: tc.duration || '60 mins',
             date: new Date(tc.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
             time: tc.time,
             type: 'Workshop', // Or add type selection in form
             city: tc.city.toLowerCase(),
+            maxParticipants: tc.maxParticipants || '0',
             price: tc.feeType === 'Free' ? 'Free' : tc.feeAmount,
             image: tc.eventImage || 'https://images.unsplash.com/photo-1527137342181-19aab11a8ee1?auto=format&fit=crop&q=80&w=400'
         });
@@ -264,6 +275,19 @@ const ClassesPage = () => {
             return;
         }
 
+        const classBookings = allBookings.filter(b => b.classId === selectedClassItem.id);
+        const capacity = Number(selectedClassItem.maxParticipants) || 0;
+        if (capacity > 0 && classBookings.length >= capacity) {
+            alert('This class is full. Please choose another session.');
+            return;
+        }
+
+        const alreadyBooked = classBookings.some(b => b.userEmail === currentUser.email);
+        if (alreadyBooked) {
+            alert('You have already booked this class.');
+            return;
+        }
+
         const newBookedClass = {
             id: Date.now(),
             classId: selectedClassItem.id,
@@ -275,14 +299,15 @@ const ClassesPage = () => {
             type: selectedClassItem.type,
             image: selectedClassItem.image,
             price: selectedClassItem.price,
+            maxParticipants: selectedClassItem.maxParticipants,
             ...bookingData,
             userEmail: currentUser.email,
             timestamp: new Date().toISOString()
         };
 
-        const existingBooked = JSON.parse(localStorage.getItem('booked_classes') || '[]');
-        const updatedBooked = [newBookedClass, ...existingBooked];
+        const updatedBooked = [newBookedClass, ...allBookings];
         localStorage.setItem('booked_classes', JSON.stringify(updatedBooked));
+        setAllBookings(updatedBooked);
         setBookedClasses(updatedBooked.filter(a => a.userEmail === currentUser.email));
 
         // Notification for the user (student)
@@ -337,6 +362,8 @@ const ClassesPage = () => {
         const all = JSON.parse(localStorage.getItem('booked_classes') || '[]');
         const filteredAll = all.filter(a => a.id !== classToCancel.id);
         localStorage.setItem('booked_classes', JSON.stringify(filteredAll));
+        setAllBookings(filteredAll);
+        setBookedClasses(filteredAll.filter(a => a.userEmail === currentUser.email));
 
         // Find the tutorEmail from mockClasses or tc
         const classInfo = mockClasses.find(c => c.title === classToCancel.title && c.instructor === classToCancel.instructor);
@@ -372,6 +399,13 @@ const ClassesPage = () => {
     };
 
     const filteredClasses = mockClasses.filter(c => c.city === selectedCity.toLowerCase());
+    const getSeatsInfo = (item) => {
+        const booked = allBookings.filter(b => b.classId === item.id).length;
+        const capacity = Number(item.maxParticipants) || 0;
+        if (!capacity) return null;
+        const remaining = Math.max(capacity - booked, 0);
+        return `${booked} / ${capacity} seats booked · ${remaining} remaining`;
+    };
 
     return (
         <div className="app-container" style={{
@@ -578,6 +612,9 @@ const ClassesPage = () => {
                                                 <span style={{ fontSize: '0.9rem' }}>{item.time}</span>
                                             </div>
                                         </div>
+                                        {getSeatsInfo(item) && (
+                                            <p style={{ margin: '0 0 1rem 0', color: '#a5f3fc', fontSize: '0.95rem', fontWeight: '600' }}>{getSeatsInfo(item)}</p>
+                                        )}
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <span style={{ color: '#00c864', fontSize: '1.4rem', fontWeight: '900' }}>{item.price}</span>
                                             <button
@@ -668,6 +705,48 @@ const ClassesPage = () => {
                             </svg>
                             <p style={{ fontSize: '1.2rem', fontWeight: '500' }}>Your class schedule is empty.</p>
                             <p style={{ fontSize: '1rem', marginTop: '0.5rem', opacity: 0.7 }}>Join upcoming sessions to start your wellness journey.</p>
+                        </div>
+                    )}
+
+                    {cancelledEvents.length > 0 && (
+                        <div style={{ marginTop: '4rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '2rem', borderLeft: '5px solid #ef4444', paddingLeft: '1.5rem' }}>
+                                <h2 style={{ color: 'white', fontSize: '2.5rem', fontWeight: '800', margin: 0 }}>Cancelled Classes & Events</h2>
+                                <div style={{
+                                    background: 'rgba(239, 68, 68, 0.2)',
+                                    color: '#ef4444',
+                                    padding: '4px 15px',
+                                    borderRadius: '50px',
+                                    fontSize: '1rem',
+                                    fontWeight: '700',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)'
+                                }}>
+                                    {cancelledEvents.length} Cancelled
+                                </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '2rem' }}>
+                                {cancelledEvents.map(event => (
+                                    <div key={event.id} className="glass-panel animate-fade-in" style={{ padding: '0', borderRadius: '24px', overflow: 'hidden', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                                        {event.eventImage && (
+                                            <div style={{ height: '180px', width: '100%' }}>
+                                                <img src={event.eventImage} alt={event.eventName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            </div>
+                                        )}
+                                        <div style={{ padding: '1.5rem' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                                                <div>
+                                                    <h4 style={{ margin: 0, color: 'white', fontSize: '1.4rem' }}>{event.eventName}</h4>
+                                                    <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', color: '#ef4444', fontWeight: '700' }}>Cancelled on {new Date(event.cancelledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                                                </div>
+                                                <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '4px 10px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: '700' }}>Cancelled</span>
+                                            </div>
+                                            <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.95rem', color: 'rgba(255,255,255,0.8)', lineHeight: '1.6' }}>{event.description}</p>
+                                            <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', color: 'rgba(255,255,255,0.75)' }}><strong>Reason:</strong> {event.cancellationReason || 'No reason provided.'}</p>
+                                            <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>Location: {event.city || event.location || 'N/A'}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>
