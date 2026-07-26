@@ -1,9 +1,27 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+
+  // ── Dev-server proxy ────────────────────────────────────────────────────
+  // Browsers cannot call https://integrate.api.nvidia.com directly (CORS).
+  // Any request to /nim-api/** is transparently forwarded to the NVIDIA NIM
+  // endpoint by Vite's own server, which is not subject to browser CORS rules.
+  server: {
+    proxy: {
+      '/nim-api': {
+        target: 'https://integrate.api.nvidia.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/nim-api/, ''),
+      },
+    },
+  },
+
   build: {
     // Raise the warning threshold so large but legitimate chunks don't warn
     chunkSizeWarningLimit: 1000,

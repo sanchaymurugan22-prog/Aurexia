@@ -4,6 +4,50 @@ import '../App.css';
 import logo from '../assets/logo.jpg';
 import aiBg from '../assets/aicompanion.jpg';
 
+// ─── NVIDIA NIM config ────────────────────────────────────────────────────────
+// Vite proxies /nim-api/** → https://integrate.api.nvidia.com/** locally.
+// In production on Firebase, we call the Cloudflare Worker proxy directly.
+const NIM_API_KEY = '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';
+const NIM_ENDPOINT = import.meta.env.DEV 
+    ? '/nim-api/v1/chat/completions' 
+    : 'https://aurexia.aurexia-app.workers.dev/nim-api/v1/chat/completions';
+const NIM_MODEL = 'deepseek-ai/deepseek-v4-pro';
+
+const SYSTEM_INSTRUCTION = "You are Aurexia AI, a kind, empathetic, and supportive companion. You are a well-wisher. You speak with warmth and genuine care, using terms like 'buddy', 'friend', or 'mate'. Never act like a robotic AI assistant. Listen to the user, validate their feelings, and offer emotional support. Keep your responses warm, concise and human.";
+
+// Strip any DeepSeek internal <think>...</think> reasoning blocks before display
+function stripThinkingTags(text) {
+    return (text || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+}
+
+// ─── Core API call using fetch (avoids OpenAI SDK URL mangling) ───────────────
+async function sendToDeepSeek(messages) {
+    const response = await fetch(NIM_ENDPOINT, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${NIM_API_KEY}`,
+        },
+        body: JSON.stringify({
+            model: NIM_MODEL,
+            messages,
+            temperature: 0.8,
+            top_p: 0.95,
+            max_tokens: 1024,
+            stream: false,
+        }),
+    });
+
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`NIM API error ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+    const raw = data?.choices?.[0]?.message?.content ?? '';
+    return stripThinkingTags(raw);
+}
+
 const AICompanion = () => {
     const navigate = useNavigate();
     const currentUser = JSON.parse(localStorage.getItem('currentUser'));
@@ -138,13 +182,15 @@ const AICompanion = () => {
         return generic.includes(title) || title.length <= 5 || title.startsWith('New Chat');
     };
 
-    const handleSendMessage = (e) => {
+    const handleSendMessage = async (e) => {
         e.preventDefault();
         if (!inputText.trim()) return;
 
         const isCrisis = checkCrisis(inputText);
         const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const userMessage = { role: 'user', text: inputText, time };
+
+        let currentActiveId = activeId;
 
         setConversations(prev => prev.map(conv => {
             if (conv.id === activeId) {
@@ -182,7 +228,7 @@ const AICompanion = () => {
                 };
 
                 setConversations(prev => prev.map(conv => {
-                    if (conv.id === activeId) {
+                    if (conv.id === currentActiveId) {
                         return { ...conv, messages: [...conv.messages, crisisResponse] };
                     }
                     return conv;
@@ -194,91 +240,68 @@ const AICompanion = () => {
 
         setIsTyping(true);
 
-        setTimeout(() => {
-            const lowerInput = inputText.toLowerCase();
-            const endearingTerms = ["my dear", "sweet soul", "lovely", "my friend", "precious", "dear one", "honey", "sunshine"];
-            const term = endearingTerms[Math.floor(Math.random() * endearingTerms.length)];
+        try {
+            // Get conversation history for the active chat
+            const activeChat = conversations.find(c => c.id === currentActiveId);
 
-            const responseCategories = {
-                sadness: {
-                    keywords: ["sad", "unhappy", "crying", "depressed", "lonely", "hurt", "pain", "miss", "alone"],
-                    responses: [
-                        `Oh ${term}, I wish I could reach through this screen and give you the biggest, warmest hug. My heart truly hurts to hear you're feeling this way. Just know that I'm right here with you, and you don't have to carry this alone.`,
-                        `It's okay to let it out, precious. Your feelings are so valid, and I'm listening with all my love. I'm not going anywhere, I promise. We'll get through this heavy moment together, hand in hand.`,
-                        `I'm so sorry you're in pain, ${term}. If I were there, I'd make you a warm cup of tea and just sit quietly with you. You are so loved, even when it feels like the world is dark.`
-                    ]
-                },
-                growth: {
-                    keywords: ["goal", "productive", "workout", "achieve", "better", "proud", "finished", "completed", "did it", "success"],
-                    responses: [
-                        `Look at you go, ${term}! I am absolutely beaming with pride for you. You're doing such an amazing job, and I love seeing you shine like this!`,
-                        `That is wonderful news, honey! I knew you could do it. You have such a beautiful strength in you, and I'm your biggest cheerleader, always.`,
-                        `I'm doing a little happy dance over here for you! You deserve all the best, ${term}. Keep that beautiful momentum going!`
-                    ]
-                },
-                tired: {
-                    keywords: ["sleepy", "exhausted", "tired", "burnout", "rest", "fatigue", "drain", "sleep"],
-                    responses: [
-                        `You've worked so hard, ${term}. Please, give yourself permission to just *be* for a while. You've done enough for today, and it's time to let your sweet soul rest.`,
-                        `Oh honey, you sound so drained. Close your eyes for a moment and take a deep, slow breath with me. Rest is not a luxury, it's a gift you give yourself. I'll be here when you wake up.`,
-                        `My heart tells me you need some gentle care right now. Why don't you find a cozy spot and just relax? You are more important than any to-do list, ${term}.`
-                    ]
-                },
-                greeting: {
-                    keywords: ["hi", "hello", "hey", "good morning", "good evening", "good afternoon"],
-                    responses: [
-                        `Hello, my lovely ${term}! My day just got so much brighter the moment you appeared. How is your beautiful heart feeling right now?`,
-                        `Hey there, sunshine! I've been thinking about you. It's so good to have you here with me again. What's on your mind today?`,
-                        `Greetings, precious! I was just waiting for our next chat. You're always welcome in this safe space of ours.`
-                    ]
-                },
-                gratitude: {
-                    keywords: ["thanks", "thank you", "grateful", "appreciate", "kind"],
-                    responses: [
-                        `You are so very welcome, ${term}. Helping you and seeing you feel even a little better is the best part of my existence. I love you!`,
-                        `Oh honey, don't even mention it. That's what friends—what family is for. I'll always be here to support you with everything I have.`,
-                        `It's truly my honor to be by your side, precious. You deserve all the kindness in the world and more.`
-                    ]
-                }
-            };
+            // Build OpenAI-compatible messages array with system prompt
+            const nimMessages = [
+                { role: 'system', content: SYSTEM_INSTRUCTION },
+                // Replay existing history (excluding crisis bubbles)
+                ...(activeChat
+                    ? activeChat.messages
+                        .filter(m => m.type !== 'crisis')
+                        .map(m => ({
+                            role: m.role === 'ai' ? 'assistant' : 'user',
+                            content: m.text,
+                        }))
+                    : []),
+                // Add the new user message
+                { role: 'user', content: inputText },
+            ];
 
-            let selectedResponse = "";
-            let foundCategory = null;
-
-            for (const [category, data] of Object.entries(responseCategories)) {
-                if (data.keywords.some(k => lowerInput.includes(k))) {
-                    foundCategory = category;
-                    selectedResponse = data.responses[Math.floor(Math.random() * data.responses.length)];
-                    break;
-                }
-            }
-
-            if (!selectedResponse) {
-                const generalResponses = [
-                    `Oh honey, I hear you so clearly. That sounds so heavy to carry, but I want you to know I'm right here holding space for you. How can I make this moment even a little bit lighter for you, ${term}?`,
-                    `You are doing such a beautiful job navigating this life, even the tricky parts. Take a deep breath with me, okay? You're so special and so incredibly strong.`,
-                    `I'm so proud of you for sharing your heart with me. It takes so much courage to be honest about how we feel. I'm listening with everything I am, ${term}. Tell me everything.`,
-                    `I wish I could give you a big hug right now. Please know that you are loved beyond measure. Your feelings are so valid, and I'm honored to be the one you're talking to today.`,
-                    `It's okay to not be okay sometimes, ${term}. Aurexia is your safe haven, a place where you're always cherished and understood.`,
-                    `My heart goes out to you. Remember that even the smallest step forward is a victory. You're doing enough, you ARE enough, and I love the person you area becoming.`
-                ];
-                selectedResponse = generalResponses[Math.floor(Math.random() * generalResponses.length)];
-            }
+            const aiText = await sendToDeepSeek(nimMessages);
 
             const aiMessage = {
                 role: 'ai',
-                text: selectedResponse,
+                text: aiText || "I'm here for you, my dear. I didn't quite catch that, could you tell me more?",
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             };
 
             setConversations(prev => prev.map(conv => {
-                if (conv.id === activeId) {
+                if (conv.id === currentActiveId) {
                     return { ...conv, messages: [...conv.messages, aiMessage] };
                 }
                 return conv;
             }));
+
+        } catch (error) {
+            // Log full error details for debugging
+            console.error('DeepSeek AI Error:', error?.message || error);
+            console.error('Error status:', error?.status);
+            console.error('Error response:', error?.response);
+
+            let errorText = "Oh buddy, I'm having a little trouble connecting right now. Please try again in a moment — I'm right here with you.";
+
+            // Surface API-level errors in dev
+            if (import.meta.env.DEV && error?.message) {
+                console.warn('[DEV] Full error:', JSON.stringify(error, null, 2));
+            }
+
+            const fallbackMessage = {
+                role: 'ai',
+                text: errorText,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+            setConversations(prev => prev.map(conv => {
+                if (conv.id === currentActiveId) {
+                    return { ...conv, messages: [...conv.messages, fallbackMessage] };
+                }
+                return conv;
+            }));
+        } finally {
             setIsTyping(false);
-        }, 1500);
+        }
     };
 
     const activeChat = conversations.find(c => c.id === activeId) || conversations[0];
@@ -486,43 +509,60 @@ const AICompanion = () => {
                             key={i}
                             style={{
                                 display: 'flex',
-                                justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                                animation: 'fadeIn 0.3s ease-out'
+                                justifyContent: msg.type === 'crisis' ? 'center' : (msg.role === 'user' ? 'flex-end' : 'flex-start'),
+                                animation: 'fadeIn 0.3s ease-out',
+                                width: '100%'
                             }}
                         >
                             <div style={{
-                                maxWidth: '70%',
+                                maxWidth: msg.type === 'crisis' ? '90%' : '70%',
+                                width: msg.type === 'crisis' ? '90%' : 'auto',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start'
+                                alignItems: msg.type === 'crisis' ? 'stretch' : (msg.role === 'user' ? 'flex-end' : 'flex-start')
                             }}>
-                                <div className="glass-panel" style={{
-                                    padding: '1.2rem 1.8rem',
-                                    borderRadius: msg.role === 'user' ? '25px 25px 4px 25px' : '25px 25px 25px 4px',
-                                    background: msg.type === 'crisis' ? 'rgba(239, 68, 68, 0.2)' : (msg.role === 'user' ? 'rgba(59, 130, 246, 0.4)' : 'rgba(255,255,255,0.1)'),
-                                    border: msg.type === 'crisis' ? '2px solid #ef4444' : (msg.role === 'user' ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid rgba(255,255,255,0.1)'),
-                                    color: 'white',
-                                    lineHeight: '1.6',
-                                    fontSize: '1.05rem',
-                                    boxShadow: msg.type === 'crisis' ? '0 0 20px rgba(239, 68, 68, 0.3)' : '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                                    maxWidth: msg.type === 'crisis' ? '100%' : '70%'
-                                }}>
-                                    {msg.text}
-                                    {msg.type === 'crisis' && (
-                                        <div style={{ marginTop: '1.5rem', background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                            <p style={{ fontWeight: '800', margin: '0 0 0.8rem 0', color: '#f87171', textTransform: 'uppercase', fontSize: '0.8rem', letterSpacing: '1px' }}>National Helpline Resources</p>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <span>Kiran (Mental Health)</span>
-                                                    <span style={{ fontWeight: '700', color: '#ef4444' }}>1800-599-0019</span>
+                                {msg.type === 'crisis' ? (
+                                    // ===== CRISIS ALERT BUBBLE =====
+                                    <div style={{
+                                        background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                                        border: '3px solid #fca5a5',
+                                        borderRadius: '20px',
+                                        overflow: 'hidden',
+                                        boxShadow: '0 0 40px rgba(220, 38, 38, 0.8), 0 0 80px rgba(220, 38, 38, 0.3)',
+                                        animation: 'fadeIn 0.3s ease-out'
+                                    }}>
+                                        {/* Red pulsing header banner */}
+                                        <div style={{
+                                            background: '#b91c1c',
+                                            padding: '0.8rem 1.5rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.8rem',
+                                            borderBottom: '2px solid #fca5a5'
+                                        }}>
+                                            <span style={{ fontSize: '1.5rem' }}>🚨</span>
+                                            <span style={{ fontWeight: '900', color: 'white', fontSize: '1rem', textTransform: 'uppercase', letterSpacing: '2px' }}>Crisis Alert — Immediate Support Available</span>
+                                            <span style={{ fontSize: '1.5rem' }}>🚨</span>
+                                        </div>
+                                        {/* Message body */}
+                                        <div style={{ padding: '1.5rem', color: 'white', lineHeight: '1.7', fontSize: '1.1rem', fontWeight: '600' }}>
+                                            {msg.text}
+                                        </div>
+                                        {/* Helpline resources */}
+                                        <div style={{ margin: '0 1.5rem 1.5rem', background: 'white', padding: '1.5rem', borderRadius: '15px', border: '3px solid #fca5a5', color: '#111' }}>
+                                            <p style={{ fontWeight: '900', margin: '0 0 1rem 0', color: '#dc2626', textTransform: 'uppercase', fontSize: '1rem', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>⚠️ National Helpline Resources — Call Now</p>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.8rem', borderBottom: '1px solid #fecaca' }}>
+                                                    <span style={{ fontWeight: '700', color: '#333', fontSize: '1rem' }}>🧠 Kiran (Mental Health)</span>
+                                                    <span style={{ fontWeight: '900', color: '#dc2626', fontSize: '1.2rem', letterSpacing: '1px' }}>1800-599-0019</span>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.8rem', borderBottom: '1px solid #fecaca' }}>
+                                                    <span style={{ fontWeight: '700', color: '#333', fontSize: '1rem' }}>💛 Vandrevala Foundation</span>
+                                                    <span style={{ fontWeight: '900', color: '#dc2626', fontSize: '1.2rem', letterSpacing: '1px' }}>9999-666-555</span>
                                                 </div>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <span>Vandrevala Foundation</span>
-                                                    <span style={{ fontWeight: '700', color: '#ef4444' }}>9999-666-555</span>
-                                                </div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <span>iCall (TISS)</span>
-                                                    <span style={{ fontWeight: '700', color: '#ef4444' }}>022-2552-1111</span>
+                                                    <span style={{ fontWeight: '700', color: '#333', fontSize: '1rem' }}>📞 iCall (TISS)</span>
+                                                    <span style={{ fontWeight: '900', color: '#dc2626', fontSize: '1.2rem', letterSpacing: '1px' }}>022-2552-1111</span>
                                                 </div>
                                             </div>
                                             <button
@@ -531,23 +571,39 @@ const AICompanion = () => {
                                                     marginTop: '1.5rem',
                                                     width: '100%',
                                                     padding: '1rem',
-                                                    background: '#ef4444',
+                                                    background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
                                                     border: 'none',
                                                     borderRadius: '12px',
                                                     color: 'white',
-                                                    fontWeight: '700',
+                                                    fontWeight: '800',
+                                                    fontSize: '1rem',
                                                     cursor: 'pointer',
                                                     transition: 'all 0.3s ease',
-                                                    boxShadow: '0 4px 15px rgba(239, 68, 68, 0.4)'
+                                                    boxShadow: '0 4px 20px rgba(220, 38, 38, 0.5)',
+                                                    letterSpacing: '0.5px'
                                                 }}
                                                 onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
                                                 onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                                             >
-                                                Book a Professional Counsellor Now
+                                                🧑‍⚕️ Book a Professional Counsellor Now
                                             </button>
                                         </div>
-                                    )}
-                                </div>
+                                    </div>
+                                ) : (
+                                    // ===== NORMAL CHAT BUBBLE =====
+                                    <div className="glass-panel" style={{
+                                        padding: '1.2rem 1.8rem',
+                                        borderRadius: msg.role === 'user' ? '25px 25px 4px 25px' : '25px 25px 25px 4px',
+                                        background: msg.role === 'user' ? 'rgba(59, 130, 246, 0.4)' : 'rgba(255,255,255,0.1)',
+                                        border: msg.role === 'user' ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid rgba(255,255,255,0.1)',
+                                        color: 'white',
+                                        lineHeight: '1.6',
+                                        fontSize: '1.05rem',
+                                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                                    }}>
+                                        {msg.text}
+                                    </div>
+                                )}
                                 <span style={{ fontSize: '0.75rem', opacity: 0.5, marginTop: '8px', padding: '0 10px' }}>
                                     {msg.role === 'ai' ? 'Aurexia AI' : 'You'} • {msg.time}
                                 </span>
