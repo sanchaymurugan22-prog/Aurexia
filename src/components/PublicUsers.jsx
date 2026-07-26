@@ -24,10 +24,20 @@ const PublicUsers = () => {
     useEffect(() => {
         const fetchUsers = async () => {
             try {
-                const snapshot = await getDocs(collection(db, 'users'));
-                const users = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
-                // Only show users with role 'public' (safety filter)
-                setPublicUsers(users.filter(u => u.role === 'public'));
+                const publicSnap = await getDocs(collection(db, 'public'));
+                let publicUsersList = publicSnap.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
+
+                try {
+                    const legacySnap = await getDocs(collection(db, 'users'));
+                    const legacyUsers = legacySnap.docs
+                        .map(doc => ({ ...doc.data(), uid: doc.id }))
+                        .filter(u => u.role === 'public' && !publicUsersList.some(pu => pu.uid === u.uid || pu.email === u.email));
+                    publicUsersList = [...publicUsersList, ...legacyUsers];
+                } catch (legacyErr) {
+                    // Ignore legacy fetch error
+                }
+
+                setPublicUsers(publicUsersList);
             } catch (error) {
                 console.error('Error fetching public users:', error);
             }

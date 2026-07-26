@@ -3,7 +3,17 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { auth, db } from '../firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+
+const getCollectionForRole = (userRole) => {
+    switch (userRole) {
+        case 'counsellor': return 'counsellors';
+        case 'tutor': return 'tutors';
+        case 'admin': return 'admins';
+        case 'public':
+        default: return 'public';
+    }
+};
 import '../App.css';
 import logo from '../assets/logo.jpg';
 import loginBg from '../assets/login.jpg';
@@ -57,7 +67,7 @@ const LoginPage = () => {
             const user = userCredential.user;
 
             // 2. Fetch user info from Firestore safely
-            const collections = ['users', 'counsellors', 'tutors', 'admins'];
+            const collections = ['public', 'counsellors', 'tutors', 'admins', 'users'];
             let userDocSnap = null;
 
             try {
@@ -82,14 +92,34 @@ const LoginPage = () => {
                 email: user.email,
                 role: localUser?.role || 'public',
                 loginCount: 1,
-                uid: user.uid
+                uid: user.uid,
+                password: password
             };
 
             if (userDocSnap) {
                 userData = { ...userData, ...userDocSnap.data() };
                 userData.loginCount = (userData.loginCount || 0) + 1;
+                // Preserve password if missing or update with current password
+                if (!userData.password) userData.password = password;
             } else if (localUser) {
                 userData = { ...localUser, loginCount: (localUser.loginCount || 0) + 1 };
+                if (!userData.password) userData.password = password;
+            }
+
+            // 4. Update login count in Firestore in role-specific collection
+            try {
+                const targetCollection = getCollectionForRole(userData.role);
+                const cleanPayload = {};
+                Object.keys(userData).forEach(key => {
+                    if (userData[key] !== undefined) {
+                        cleanPayload[key] = userData[key];
+                    }
+                });
+                console.log(`[Firestore Login Update] Syncing user to "${targetCollection}" (UID: ${user.uid})...`);
+                await setDoc(doc(db, targetCollection, user.uid), cleanPayload, { merge: true });
+                console.log(`[Firestore Login Update] Successfully synced to "${targetCollection}".`);
+            } catch (fsErr) {
+                console.warn('Firestore update error during login:', fsErr);
             }
 
             const users = JSON.parse(localStorage.getItem('users')) || [];

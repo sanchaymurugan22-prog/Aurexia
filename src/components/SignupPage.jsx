@@ -35,7 +35,7 @@ const SignupPage = () => {
             case 'tutor': return 'tutors';
             case 'admin': return 'admins';
             case 'public':
-            default: return 'users';
+            default: return 'public';
         }
     };
 
@@ -65,17 +65,26 @@ const SignupPage = () => {
                 }
             }
 
-            const newUser = { name, email, role, loginCount: 0, uid: user.uid, createdAt: new Date().toISOString() };
+            const newUser = {
+                name: name || '',
+                email: email || '',
+                password: password || '',
+                role: role || 'public',
+                loginCount: 0,
+                uid: user.uid,
+                createdAt: new Date().toISOString()
+            };
 
-            // 3. Save user info to Firestore
+            // 3. Save user info to Firestore in role-specific collection
+            const collectionName = getCollectionForRole(role);
+            console.log(`[Firestore Signup] Saving user ${email} to collection "${collectionName}" (UID: ${user.uid})...`);
+            
             try {
-                const collectionName = getCollectionForRole(role);
                 await setDoc(doc(db, collectionName, user.uid), newUser);
-                if (collectionName !== 'users') {
-                    await setDoc(doc(db, 'users', user.uid), newUser);
-                }
+                console.log(`[Firestore Signup] Successfully saved to collection "${collectionName}".`);
             } catch (dbErr) {
-                console.warn('Firestore write warning:', dbErr);
+                console.error('[Firestore Signup Error]:', dbErr);
+                alert(`Warning: Account created in Auth, but database write failed: ${dbErr.message}`);
             }
 
             // 4. Update local storage users list

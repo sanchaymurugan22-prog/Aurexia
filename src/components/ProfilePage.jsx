@@ -106,7 +106,7 @@ const ProfilePage = () => {
             case 'tutor': return 'tutors';
             case 'admin': return 'admins';
             case 'public':
-            default: return 'users';
+            default: return 'public';
         }
     };
 
@@ -149,7 +149,15 @@ const ProfilePage = () => {
             // Save changes to Firestore in the correct role-specific collection
             if (baseUser.uid) {
                 const collectionName = getCollectionForRole(baseUser.role);
-                await setDoc(doc(db, collectionName, baseUser.uid), firestoreUpdate, { merge: true });
+                const cleanPayload = {};
+                Object.keys(firestoreUpdate).forEach(key => {
+                    if (firestoreUpdate[key] !== undefined) {
+                        cleanPayload[key] = firestoreUpdate[key];
+                    }
+                });
+                console.log(`[Firestore Profile Update] Saving to collection "${collectionName}" for UID: ${baseUser.uid}`, cleanPayload);
+                await setDoc(doc(db, collectionName, baseUser.uid), cleanPayload, { merge: true });
+                console.log(`[Firestore Profile Update] Successfully saved to "${collectionName}".`);
             }
 
             setMessage('Profile updated successfully!');

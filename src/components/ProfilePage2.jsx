@@ -109,7 +109,7 @@ const ProfilePage2 = () => {
             case 'tutor': return 'tutors';
             case 'admin': return 'admins';
             case 'public':
-            default: return 'users';
+            default: return 'public';
         }
     };
 
@@ -132,7 +132,15 @@ const ProfilePage2 = () => {
             // Save changes to Firestore in the correct role-specific collection
             if (updatedUser.uid) {
                 const collectionName = getCollectionForRole(updatedUser.role);
-                await setDoc(doc(db, collectionName, updatedUser.uid), updatedUser, { merge: true });
+                const cleanPayload = {};
+                Object.keys(updatedUser).forEach(key => {
+                    if (updatedUser[key] !== undefined) {
+                        cleanPayload[key] = updatedUser[key];
+                    }
+                });
+                console.log(`[Firestore Practitioner Register] Saving to "${collectionName}" (UID: ${updatedUser.uid})`, cleanPayload);
+                await setDoc(doc(db, collectionName, updatedUser.uid), cleanPayload, { merge: true });
+                console.log(`[Firestore Practitioner Register] Successfully saved to "${collectionName}".`);
             }
 
             setMessage('Registered as Practicioner successfully!');
@@ -175,7 +183,15 @@ const ProfilePage2 = () => {
             // Save changes to Firestore in the correct role-specific collection
             if (updatedUser.uid) {
                 const collectionName = getCollectionForRole(updatedUser.role);
-                await setDoc(doc(db, collectionName, updatedUser.uid), updatedUser, { merge: true });
+                const cleanPayload = {};
+                Object.keys(updatedUser).forEach(key => {
+                    if (updatedUser[key] !== undefined) {
+                        cleanPayload[key] = updatedUser[key];
+                    }
+                });
+                console.log(`[Firestore Profile2 Update] Saving to "${collectionName}" (UID: ${updatedUser.uid})`, cleanPayload);
+                await setDoc(doc(db, collectionName, updatedUser.uid), cleanPayload, { merge: true });
+                console.log(`[Firestore Profile2 Update] Successfully saved to "${collectionName}".`);
             }
 
             setMessage('Counsellor Profile updated successfully!');
