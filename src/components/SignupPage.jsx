@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { auth, db } from '../firebase';
-import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile, signOut } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import '../App.css';
 import logo from '../assets/logo.jpg';
@@ -15,19 +15,17 @@ const SignupPage = () => {
     const [password, setPassword] = useState('');
     const [role, setRole] = useState('public');
     const [showPassword, setShowPassword] = useState(false);
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
     const { t } = useLanguage();
 
     const getDashboardPath = (userRole) => {
         switch (userRole) {
-            case 'counsellor':
-                return '/main2';
-            case 'tutor':
-                return '/main3';
-            case 'admin':
-                return '/main4';
-            default:
-                return '/main';
+            case 'counsellor': return '/main2';
+            case 'tutor': return '/main3';
+            case 'admin': return '/main4';
+            default: return '/main';
         }
     };
 
@@ -50,31 +48,62 @@ const SignupPage = () => {
 
     const handleSignup = async (e) => {
         e.preventDefault();
+        setError('');
+        setLoading(true);
+
         try {
+            // 1. Create user in Firebase Authentication
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
-            const newUser = { name, email, role, loginCount: 0, uid: user.uid };
-            
-            // Save to Firestore role-specific collection
-            const collectionName = getCollectionForRole(role);
-            await setDoc(doc(db, collectionName, user.uid), newUser);
+            // 2. Update display name in Firebase Auth
+            if (name) {
+                try {
+                    await updateProfile(user, { displayName: name });
+                } catch (pErr) {
+                    console.warn('Profile update warning:', pErr);
+                }
+            }
 
+            const newUser = { name, email, role, loginCount: 0, uid: user.uid, createdAt: new Date().toISOString() };
+
+            // 3. Save user info to Firestore
+            try {
+                const collectionName = getCollectionForRole(role);
+                await setDoc(doc(db, collectionName, user.uid), newUser);
+                if (collectionName !== 'users') {
+                    await setDoc(doc(db, 'users', user.uid), newUser);
+                }
+            } catch (dbErr) {
+                console.warn('Firestore write warning:', dbErr);
+            }
+
+            // 4. Update local storage users list
             const existingUsers = JSON.parse(localStorage.getItem('users')) || [];
-            
-            // Remove old user if it existed but without auth
             const filteredUsers = existingUsers.filter(u => u.email !== email);
             const updatedUsers = [...filteredUsers, newUser];
-            
             localStorage.setItem('users', JSON.stringify(updatedUsers));
-            
-            // Sign out the user so they have to login again
+
+            // 5. Sign out so user logs in explicitly
             await signOut(auth);
-            
-            alert('Sign in successful! Please log in with your new credentials.');
+
+            alert('Registration successful! Please log in with your new credentials.');
             navigate('/login');
-        } catch (error) {
-            alert(error.message);
+        } catch (err) {
+            console.error('Firebase Signup Error:', err);
+            let msg = err.message;
+            if (err.code === 'auth/email-already-in-use') {
+                msg = 'This email address is already registered. Please log in instead.';
+            } else if (err.code === 'auth/weak-password') {
+                msg = 'Password should be at least 6 characters long.';
+            } else if (err.code === 'auth/invalid-email') {
+                msg = 'Please enter a valid email address.';
+            } else if (err.code === 'auth/operation-not-allowed') {
+                msg = 'Email/password accounts are not enabled in your Firebase project console.';
+            }
+            setError(msg);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -93,6 +122,7 @@ const SignupPage = () => {
                 </div>
 
                 <h2>{t('signup')}</h2>
+                {error && <p className="error-message" style={{ color: '#ef4444', backgroundColor: '#fee2e2', padding: '0.6rem 0.8rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem', textAlign: 'center' }}>{error}</p>}
 
                 <form onSubmit={handleSignup} className="auth-form">
                     <div className="form-group">
@@ -103,6 +133,7 @@ const SignupPage = () => {
                             onChange={(e) => setName(e.target.value)}
                             required
                             className="glass-input"
+                            disabled={loading}
                         />
                     </div>
                     <div className="form-group">
@@ -113,6 +144,7 @@ const SignupPage = () => {
                             onChange={(e) => setEmail(e.target.value)}
                             required
                             className="glass-input"
+                            disabled={loading}
                         />
                     </div>
                     <div className="form-group">
@@ -122,6 +154,7 @@ const SignupPage = () => {
                             onChange={(e) => setRole(e.target.value)}
                             className="glass-input role-select"
                             required
+                            disabled={loading}
                         >
                             <option value="public">{t('public')}</option>
                             <option value="counsellor">{t('counsellor')}</option>
@@ -138,6 +171,7 @@ const SignupPage = () => {
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
                                 className="glass-input"
+                                disabled={loading}
                             />
                             <button
                                 type="button"
@@ -159,7 +193,9 @@ const SignupPage = () => {
                             </button>
                         </div>
                     </div>
-                    <button type="submit" className="cta-button full-width">{t('signup')}</button>
+                    <button type="submit" className="cta-button full-width" disabled={loading}>
+                        {loading ? 'Creating Account...' : t('signup')}
+                    </button>
                 </form>
 
                 <p className="switch-auth">

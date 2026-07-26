@@ -7,15 +7,15 @@ import aiBg from '../assets/aicompanion.jpg';
 // ─── NVIDIA NIM config ────────────────────────────────────────────────────────
 // Vite proxies /nim-api/** → https://integrate.api.nvidia.com/** locally.
 // In production on Firebase, we call the Cloudflare Worker proxy directly.
-const NIM_API_KEY = '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';
+const NIM_API_KEY = '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';
 const NIM_ENDPOINT = import.meta.env.DEV 
     ? '/nim-api/v1/chat/completions' 
     : 'https://aurexia.aurexia-app.workers.dev/nim-api/v1/chat/completions';
-const NIM_MODEL = 'deepseek-ai/deepseek-v4-pro';
+const NIM_MODEL = 'meta/llama-3.1-8b-instruct'; // Reliable, lightning-fast model that bypasses the 5-minute timeout issues of the heavier models 
 
 const SYSTEM_INSTRUCTION = "You are Aurexia AI, a kind, empathetic, and supportive companion. You are a well-wisher. You speak with warmth and genuine care, using terms like 'buddy', 'friend', or 'mate'. Never act like a robotic AI assistant. Listen to the user, validate their feelings, and offer emotional support. Keep your responses warm, concise and human.";
 
-// Strip any DeepSeek internal <think>...</think> reasoning blocks before display
+// Strip any DeepSeek internal <think>...<\/think> reasoning blocks before display
 function stripThinkingTags(text) {
     return (text || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 }
@@ -78,6 +78,30 @@ const AICompanion = () => {
     const [isTyping, setIsTyping] = useState(false);
     const chatEndRef = useRef(null);
 
+    // ─── Voice Conversation & Pitch Visualizer States ───────────────────────────
+    const [isVoiceActive, setIsVoiceActive] = useState(false);
+    const [voiceState, setVoiceState] = useState('idle'); // 'idle' | 'listening' | 'thinking' | 'speaking' | 'waiting'
+    const [audioData, setAudioData] = useState(new Array(28).fill(4));
+    const [liveTranscript, setLiveTranscript] = useState('');
+    const [voiceError, setVoiceError] = useState(null);
+
+    const recognitionRef = useRef(null);
+    const audioCtxRef = useRef(null);
+    const analyserRef = useRef(null);
+    const mediaStreamRef = useRef(null);
+    const animFrameRef = useRef(null);
+    const silenceTimerRef = useRef(null);
+    const isVoiceActiveRef = useRef(false);
+    const voiceStateRef = useRef('idle');
+
+    useEffect(() => {
+        isVoiceActiveRef.current = isVoiceActive;
+    }, [isVoiceActive]);
+
+    useEffect(() => {
+        voiceStateRef.current = voiceState;
+    }, [voiceState]);
+
     useEffect(() => {
         if (currentUser) {
             localStorage.setItem(storageKey, JSON.stringify(conversations));
@@ -90,7 +114,437 @@ const AICompanion = () => {
 
     useEffect(() => {
         scrollToBottom();
-    }, [conversations, activeId, isTyping]);
+    }, [conversations, activeId, isTyping, liveTranscript]);
+
+    // ─── Web Audio API Pitch Visualizer ──────────────────────────────────────────
+    const startAudioAnalysis = async () => {
+        try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                return;
+            }
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaStreamRef.current = stream;
+
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            const audioCtx = new AudioContext();
+            audioCtxRef.current = audioCtx;
+
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 64;
+            analyser.smoothingTimeConstant = 0.7;
+            analyserRef.current = analyser;
+
+            const source = audioCtx.createMediaStreamSource(stream);
+            source.connect(analyser);
+
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+            const updateVisualizer = () => {
+                if (!analyserRef.current) return;
+                analyser.getByteFrequencyData(dataArray);
+
+                const bars = [];
+                const totalBins = dataArray.length;
+                const barsCount = 28;
+                const step = Math.max(1, Math.floor(totalBins / barsCount));
+
+                for (let i = 0; i < barsCount; i++) {
+                    const binIdx = Math.min(i * step, totalBins - 1);
+                    const rawVal = dataArray[binIdx] || 0;
+                    // Scale height between 4px and 38px based on pitch intensity
+                    const height = Math.max(4, Math.min(38, Math.round((rawVal / 255) * 38)));
+                    bars.push(height);
+                }
+                setAudioData(bars);
+
+                animFrameRef.current = requestAnimationFrame(updateVisualizer);
+            };
+
+            updateVisualizer();
+        } catch (err) {
+            console.error('Error starting audio visualizer:', err);
+        }
+    };
+
+    const stopAudioAnalysis = () => {
+        if (animFrameRef.current) {
+            cancelAnimationFrame(animFrameRef.current);
+            animFrameRef.current = null;
+        }
+        if (mediaStreamRef.current) {
+            mediaStreamRef.current.getTracks().forEach(track => track.stop());
+            mediaStreamRef.current = null;
+        }
+        if (audioCtxRef.current) {
+            audioCtxRef.current.close().catch(() => {});
+            audioCtxRef.current = null;
+        }
+        analyserRef.current = null;
+        setAudioData(new Array(28).fill(4));
+    };
+
+    // Helper to normalize common homophones and short misheard greetings
+    const normalizeSpeechTranscript = (rawText) => {
+        if (!rawText) return '';
+        let cleaned = rawText.trim();
+        const lower = cleaned.toLowerCase();
+
+        if (/^(high|height|ha|he|i|eye)$/i.test(lower)) return 'Hi';
+        if (/^(hay|ay|a)$/i.test(lower)) return 'Hey';
+        if (/^(below|hallo|hello world)$/i.test(lower)) return 'Hello';
+        if (/^(how r u|how ryou|how are u)$/i.test(lower)) return 'How are you?';
+
+        cleaned = cleaned.replace(/\bhigh\b/gi, 'hi');
+        cleaned = cleaned.replace(/\bhay\b/gi, 'hey');
+
+        return cleaned;
+    };
+
+    // ─── Text-To-Speech (TTS Read Aloud) ─────────────────────────────────────────
+    const speakResponse = (text, onFinished) => {
+        if (!('speechSynthesis' in window)) {
+            if (onFinished) onFinished();
+            return;
+        }
+
+        window.speechSynthesis.cancel();
+        setVoiceState('speaking');
+
+        // Clean text for speech (strip markdown, emojis, symbols for natural human cadence)
+        const cleanText = text
+            .replace(/[*_#~`]/g, '')
+            .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+            .trim();
+
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        window.currentUtterance = utterance; // Prevents Safari/Chrome garbage collection bug where onend never fires
+
+        
+        // Light, calm, friendly male voice parameters
+        utterance.rate = 0.98;   // Smooth, natural human speed
+        utterance.pitch = 1.08;  // Light, friendly, calm male pitch (eliminates heavy/bold tone)
+        utterance.volume = 0.9;  // Soft, pleasant volume
+
+        const voices = window.speechSynthesis.getVoices();
+        
+        // Preferred light, calm male voices
+        const maleNames = ['oliver', 'daniel', 'alex', 'fred', 'george', 'google uk english male', 'google us english male', 'microsoft david', 'microsoft mark', 'guy', 'ryan', 'aaron', 'james'];
+        const femaleNames = ['samantha', 'victoria', 'karen', 'zira', 'hazel', 'female', 'woman', 'jenny', 'aria', 'fiona'];
+
+        let selectedVoice = voices.find(v => 
+            v.lang.startsWith('en') && maleNames.some(m => v.name.toLowerCase().includes(m))
+        );
+
+        if (!selectedVoice) {
+            selectedVoice = voices.find(v => 
+                v.lang.startsWith('en') && (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('man'))
+            );
+        }
+
+        if (!selectedVoice) {
+            selectedVoice = voices.find(v => 
+                v.lang.startsWith('en') && !femaleNames.some(f => v.name.toLowerCase().includes(f))
+            );
+        }
+
+        if (selectedVoice) {
+            utterance.voice = selectedVoice;
+        }
+
+        utterance.onend = () => {
+            window.speechSynthesis.cancel();
+            if (isVoiceActiveRef.current) {
+                setVoiceState('listening');
+                if (onFinished) onFinished();
+            } else {
+                setVoiceState('idle');
+            }
+        };
+
+        utterance.onerror = (e) => {
+            console.error('TTS speech synthesis error:', e);
+            window.speechSynthesis.cancel();
+            if (isVoiceActiveRef.current && onFinished) {
+                onFinished();
+            } else {
+                setVoiceState('idle');
+            }
+        };
+
+        window.speechSynthesis.speak(utterance);
+    };
+
+    // ─── Speech Recognition (STT) & Conversational Loop ─────────────────────────
+    const startSilenceTimer = (currentCapturedText = '') => {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = setTimeout(() => {
+            if (isVoiceActiveRef.current && voiceStateRef.current === 'listening') {
+                const textToSubmit = currentCapturedText.trim() || liveTranscript.trim() || inputText.trim();
+                if (textToSubmit) {
+                    console.log('1.5s silence pause after speech. Automatically sending to AI.');
+                    if (recognitionRef.current) {
+                        try { recognitionRef.current.stop(); } catch (e) {}
+                    }
+                } else {
+                    console.log('1.5s silence timeout with no speech. Deactivating voice mode.');
+                    stopVoiceMode();
+                }
+            }
+        }, 1500); // Fast 1.5s auto-submit delay after speaking
+    };
+
+    const startListeningSession = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            setVoiceError('Speech recognition is not supported in this browser. Please try Chrome or Edge.');
+            stopVoiceMode();
+            return;
+        }
+
+        if (recognitionRef.current) {
+            try { recognitionRef.current.stop(); } catch (e) {}
+        }
+
+        const recognition = new SpeechRecognition();
+        recognitionRef.current = recognition;
+
+        recognition.continuous = false; // False ensures native browser endpointing immediately when user stops speaking
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1; // 1 prevents the browser from taking too long to guess multiple variations
+        recognition.lang = navigator.language || 'en-US';
+
+        let finalCaptured = '';
+
+        recognition.onstart = () => {
+            setVoiceState('listening');
+            setLiveTranscript('');
+            startAudioAnalysis();
+            startSilenceTimer('');
+        };
+
+        recognition.onresult = (event) => {
+            let interim = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                let chunk = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    finalCaptured += chunk;
+                } else {
+                    interim += chunk;
+                }
+            }
+
+            // Fix: Combine final and interim chunks so no words are dropped while speaking!
+            const activeText = normalizeSpeechTranscript(finalCaptured + ' ' + interim);
+            setLiveTranscript(activeText);
+            setInputText(activeText);
+            startSilenceTimer(activeText);
+        };
+
+        recognition.onspeechend = () => {
+            // Natively triggered when the user stops speaking
+            if (recognitionRef.current) {
+                try { recognitionRef.current.stop(); } catch (e) {}
+            }
+        };
+
+        recognition.onerror = (event) => {
+            console.warn('Speech recognition event error:', event.error);
+            if (event.error === 'not-allowed') {
+                setVoiceError('Microphone access denied. Please allow microphone permissions.');
+                stopVoiceMode();
+            }
+        };
+
+        recognition.onend = () => {
+            clearTimeout(silenceTimerRef.current);
+            stopAudioAnalysis();
+            const rawSubmit = finalCaptured.trim() || liveTranscript.trim() || inputText.trim();
+            const textToSubmit = normalizeSpeechTranscript(rawSubmit);
+
+            if (textToSubmit && isVoiceActiveRef.current) {
+                setLiveTranscript('');
+                setInputText('');
+                handleVoiceSendMessage(textToSubmit);
+            } else if (isVoiceActiveRef.current) {
+                stopVoiceMode();
+            }
+        };
+
+        try {
+            recognition.start();
+        } catch (err) {
+            console.error('Failed starting speech recognition:', err);
+            stopVoiceMode();
+        }
+    };
+
+    const handleVoiceSendMessage = async (textToSend) => {
+        if (!textToSend.trim()) return;
+
+        setVoiceState('thinking');
+        setIsTyping(true);
+
+        const isCrisis = checkCrisis(textToSend);
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const userMessage = { role: 'user', text: textToSend, time };
+
+        let currentActiveId = activeId;
+
+        setConversations(prev => prev.map(conv => {
+            if (conv.id === activeId) {
+                let updatedTitle = conv.title;
+                const detectedTopic = generateTopicTitle(textToSend);
+                const isDetectedSpecificTopic = isWellnessTopic(detectedTopic);
+
+                if (isDetectedSpecificTopic) {
+                    if (isUninformativeTitle(conv.title) || !isWellnessTopic(conv.title)) {
+                        updatedTitle = detectedTopic;
+                    }
+                } else if (isUninformativeTitle(conv.title)) {
+                    updatedTitle = detectedTopic;
+                }
+
+                return {
+                    ...conv,
+                    title: updatedTitle,
+                    messages: [...conv.messages, userMessage]
+                };
+            }
+            return conv;
+        }));
+
+        if (isCrisis) {
+            setTimeout(() => {
+                const crisisResponse = {
+                    role: 'ai',
+                    type: 'crisis',
+                    text: "My dear friend, please listen to me. Your life is incredibly precious, and I am so deeply concerned for you. You don't have to carry this pain alone. I am here for you, but I want you to talk to someone who can provide the professional help you deserve right now. Please, reach out to these support lines immediately. They are waiting to help you with open arms.",
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                };
+
+                setConversations(prev => prev.map(conv => {
+                    if (conv.id === currentActiveId) {
+                        return { ...conv, messages: [...conv.messages, crisisResponse] };
+                    }
+                    return conv;
+                }));
+                setIsTyping(false);
+
+                speakResponse(crisisResponse.text, () => {
+                    if (isVoiceActiveRef.current) {
+                        setVoiceState('listening');
+                        setTimeout(() => {
+                            if (isVoiceActiveRef.current) startListeningSession();
+                        }, 200);
+                    }
+                });
+            }, 500);
+            return;
+        }
+
+        try {
+            const activeChat = conversations.find(c => c.id === currentActiveId);
+
+            const nimMessages = [
+                { role: 'system', content: SYSTEM_INSTRUCTION },
+                ...(activeChat
+                    ? activeChat.messages
+                        .filter(m => m.type !== 'crisis')
+                        .map(m => ({
+                            role: m.role === 'ai' ? 'assistant' : 'user',
+                            content: m.text,
+                        }))
+                    : []),
+                { role: 'user', content: textToSend },
+            ];
+
+            const aiText = await sendToDeepSeek(nimMessages);
+
+            const aiMessage = {
+                role: 'ai',
+                text: aiText || "I'm here for you, my dear. I didn't quite catch that, could you tell me more?",
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+
+            setConversations(prev => prev.map(conv => {
+                if (conv.id === currentActiveId) {
+                    return { ...conv, messages: [...conv.messages, aiMessage] };
+                }
+                return conv;
+            }));
+
+            setIsTyping(false);
+
+            speakResponse(aiMessage.text, () => {
+                if (isVoiceActiveRef.current) {
+                    setVoiceState('listening');
+                    setTimeout(() => {
+                        if (isVoiceActiveRef.current) startListeningSession();
+                    }, 200);
+                }
+            });
+
+        } catch (error) {
+            console.error('DeepSeek AI Voice Error:', error);
+            const errorText = "Oh buddy, I'm having a little trouble connecting right now. Please try again in a moment — I'm right here with you.";
+            const fallbackMessage = {
+                role: 'ai',
+                text: errorText,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+            setConversations(prev => prev.map(conv => {
+                if (conv.id === currentActiveId) {
+                    return { ...conv, messages: [...conv.messages, fallbackMessage] };
+                }
+                return conv;
+            }));
+            setIsTyping(false);
+            speakResponse(errorText, () => {
+                if (isVoiceActiveRef.current) {
+                    setVoiceState('listening');
+                    setTimeout(() => {
+                        if (isVoiceActiveRef.current) startListeningSession();
+                    }, 200);
+                }
+            });
+        }
+    };
+
+    const startVoiceMode = () => {
+        setVoiceError(null);
+        setIsVoiceActive(true);
+        isVoiceActiveRef.current = true;
+        startListeningSession();
+    };
+
+    const stopVoiceMode = () => {
+        setIsVoiceActive(false);
+        isVoiceActiveRef.current = false;
+        setVoiceState('idle');
+        setLiveTranscript('');
+        clearTimeout(silenceTimerRef.current);
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+        }
+        if (recognitionRef.current) {
+            try { recognitionRef.current.stop(); } catch (e) {}
+        }
+        stopAudioAnalysis();
+    };
+
+    const toggleVoiceMode = () => {
+        if (isVoiceActive) {
+            stopVoiceMode();
+        } else {
+            startVoiceMode();
+        }
+    };
+
+    useEffect(() => {
+        return () => {
+            stopVoiceMode();
+        };
+    }, []);
 
     const handleNewChat = () => {
         const newId = Date.now();
@@ -186,122 +640,14 @@ const AICompanion = () => {
         e.preventDefault();
         if (!inputText.trim()) return;
 
-        const isCrisis = checkCrisis(inputText);
-        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const userMessage = { role: 'user', text: inputText, time };
-
-        let currentActiveId = activeId;
-
-        setConversations(prev => prev.map(conv => {
-            if (conv.id === activeId) {
-                let updatedTitle = conv.title;
-                const detectedTopic = generateTopicTitle(inputText);
-                const isDetectedSpecificTopic = isWellnessTopic(detectedTopic);
-
-                if (isDetectedSpecificTopic) {
-                    if (isUninformativeTitle(conv.title) || !isWellnessTopic(conv.title)) {
-                        updatedTitle = detectedTopic;
-                    }
-                } else if (isUninformativeTitle(conv.title)) {
-                    updatedTitle = detectedTopic;
-                }
-
-                return {
-                    ...conv,
-                    title: updatedTitle,
-                    messages: [...conv.messages, userMessage]
-                };
-            }
-            return conv;
-        }));
-
+        const textToSend = inputText;
         setInputText('');
+        setLiveTranscript('');
 
-        if (isCrisis) {
-            setIsTyping(true);
-            setTimeout(() => {
-                const crisisResponse = {
-                    role: 'ai',
-                    type: 'crisis',
-                    text: "My dear friend, please listen to me. Your life is incredibly precious, and I am so deeply concerned for you. You don't have to carry this pain alone. I am here for you, but I want you to talk to someone who can provide the professional help you deserve right now. Please, reach out to these support lines immediately. They are waiting to help you with open arms.",
-                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                };
-
-                setConversations(prev => prev.map(conv => {
-                    if (conv.id === currentActiveId) {
-                        return { ...conv, messages: [...conv.messages, crisisResponse] };
-                    }
-                    return conv;
-                }));
-                setIsTyping(false);
-            }, 500);
-            return;
-        }
-
-        setIsTyping(true);
-
-        try {
-            // Get conversation history for the active chat
-            const activeChat = conversations.find(c => c.id === currentActiveId);
-
-            // Build OpenAI-compatible messages array with system prompt
-            const nimMessages = [
-                { role: 'system', content: SYSTEM_INSTRUCTION },
-                // Replay existing history (excluding crisis bubbles)
-                ...(activeChat
-                    ? activeChat.messages
-                        .filter(m => m.type !== 'crisis')
-                        .map(m => ({
-                            role: m.role === 'ai' ? 'assistant' : 'user',
-                            content: m.text,
-                        }))
-                    : []),
-                // Add the new user message
-                { role: 'user', content: inputText },
-            ];
-
-            const aiText = await sendToDeepSeek(nimMessages);
-
-            const aiMessage = {
-                role: 'ai',
-                text: aiText || "I'm here for you, my dear. I didn't quite catch that, could you tell me more?",
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            };
-
-            setConversations(prev => prev.map(conv => {
-                if (conv.id === currentActiveId) {
-                    return { ...conv, messages: [...conv.messages, aiMessage] };
-                }
-                return conv;
-            }));
-
-        } catch (error) {
-            // Log full error details for debugging
-            console.error('DeepSeek AI Error:', error?.message || error);
-            console.error('Error status:', error?.status);
-            console.error('Error response:', error?.response);
-
-            let errorText = "Oh buddy, I'm having a little trouble connecting right now. Please try again in a moment — I'm right here with you.";
-
-            // Surface API-level errors in dev
-            if (import.meta.env.DEV && error?.message) {
-                console.warn('[DEV] Full error:', JSON.stringify(error, null, 2));
-            }
-
-            const fallbackMessage = {
-                role: 'ai',
-                text: errorText,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            };
-            setConversations(prev => prev.map(conv => {
-                if (conv.id === currentActiveId) {
-                    return { ...conv, messages: [...conv.messages, fallbackMessage] };
-                }
-                return conv;
-            }));
-        } finally {
-            setIsTyping(false);
-        }
+        // Force voice mode active so the reply is read aloud and the mic opens afterwards
+        setIsVoiceActive(true);
+        isVoiceActiveRef.current = true;
+        handleVoiceSendMessage(textToSend);
     };
 
     const activeChat = conversations.find(c => c.id === activeId) || conversations[0];
@@ -319,6 +665,31 @@ const AICompanion = () => {
             backgroundPosition: 'center',
             position: 'relative'
         }}>
+            {/* Keyframe Animations for Mic Glow & Dotted Wave */}
+            <style>{`
+                @keyframes micPulse {
+                    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); transform: scale(1); }
+                    50% { box-shadow: 0 0 25px 8px rgba(236, 72, 153, 0.8); transform: scale(1.08); }
+                    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); transform: scale(1); }
+                }
+                @keyframes wavePulse {
+                    0%, 100% { opacity: 0.3; transform: scaleY(0.6); }
+                    50% { opacity: 1; transform: scaleY(1.4); }
+                }
+                .dot-vibe-bar {
+                    width: 4px;
+                    border-radius: 4px;
+                    background: repeating-linear-gradient(to bottom, #60a5fa 0px, #60a5fa 3px, transparent 3px, transparent 6px);
+                    transition: height 0.08s ease-out, background 0.2s ease;
+                }
+                .dot-vibe-bar.speaking {
+                    background: repeating-linear-gradient(to bottom, #10b981 0px, #10b981 3px, transparent 3px, transparent 6px);
+                }
+                .dot-vibe-bar.thinking {
+                    background: repeating-linear-gradient(to bottom, #f59e0b 0px, #f59e0b 3px, transparent 3px, transparent 6px);
+                }
+            `}</style>
+
             <div style={{
                 position: 'absolute',
                 top: 0,
@@ -491,8 +862,22 @@ const AICompanion = () => {
                     justifyContent: 'center'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div style={{ width: '12px', height: '12px', background: '#10b981', borderRadius: '50%', boxShadow: '0 0 10px #10b981' }}></div>
+                        <div style={{ width: '12px', height: '12px', background: isVoiceActive ? '#ef4444' : '#10b981', borderRadius: '50%', boxShadow: isVoiceActive ? '0 0 12px #ef4444' : '0 0 10px #10b981' }}></div>
                         <h2 className="gradient-text" style={{ fontSize: '1.8rem', fontWeight: '800', margin: 0 }}>Aurexia AI</h2>
+                        {isVoiceActive && (
+                            <span style={{
+                                fontSize: '0.75rem',
+                                background: 'rgba(239, 68, 68, 0.25)',
+                                color: '#fca5a5',
+                                border: '1px solid rgba(239, 68, 68, 0.5)',
+                                padding: '0.3rem 0.8rem',
+                                borderRadius: '20px',
+                                fontWeight: '700',
+                                letterSpacing: '0.5px'
+                            }}>
+                                🎙️ Live Voice Mode
+                            </span>
+                        )}
                     </div>
                 </header>
 
@@ -531,7 +916,6 @@ const AICompanion = () => {
                                         boxShadow: '0 0 40px rgba(220, 38, 38, 0.8), 0 0 80px rgba(220, 38, 38, 0.3)',
                                         animation: 'fadeIn 0.3s ease-out'
                                     }}>
-                                        {/* Red pulsing header banner */}
                                         <div style={{
                                             background: '#b91c1c',
                                             padding: '0.8rem 1.5rem',
@@ -544,11 +928,9 @@ const AICompanion = () => {
                                             <span style={{ fontWeight: '900', color: 'white', fontSize: '1rem', textTransform: 'uppercase', letterSpacing: '2px' }}>Crisis Alert — Immediate Support Available</span>
                                             <span style={{ fontSize: '1.5rem' }}>🚨</span>
                                         </div>
-                                        {/* Message body */}
                                         <div style={{ padding: '1.5rem', color: 'white', lineHeight: '1.7', fontSize: '1.1rem', fontWeight: '600' }}>
                                             {msg.text}
                                         </div>
-                                        {/* Helpline resources */}
                                         <div style={{ margin: '0 1.5rem 1.5rem', background: 'white', padding: '1.5rem', borderRadius: '15px', border: '3px solid #fca5a5', color: '#111' }}>
                                             <p style={{ fontWeight: '900', margin: '0 0 1rem 0', color: '#dc2626', textTransform: 'uppercase', fontSize: '1rem', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>⚠️ National Helpline Resources — Call Now</p>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -622,10 +1004,27 @@ const AICompanion = () => {
                     <div ref={chatEndRef} />
                 </div>
 
+                {/* ─── INPUT AREA WITH MICROPHONE & PITCH DOTTED LINES VISUALIZER ─── */}
                 <div style={{
                     padding: '2rem 3rem 3rem',
                     background: 'linear-gradient(transparent, rgba(0,0,0,0.2))'
                 }}>
+                    {voiceError && (
+                        <div style={{
+                            maxWidth: '1000px',
+                            margin: '0 auto 1rem',
+                            padding: '0.8rem 1.2rem',
+                            background: 'rgba(239, 68, 68, 0.2)',
+                            border: '1px solid rgba(239, 68, 68, 0.5)',
+                            borderRadius: '12px',
+                            color: '#fca5a5',
+                            fontSize: '0.9rem',
+                            textAlign: 'center'
+                        }}>
+                            ⚠️ {voiceError}
+                        </div>
+                    )}
+
                     <form
                         onSubmit={handleSendMessage}
                         className="glass-panel"
@@ -635,28 +1034,150 @@ const AICompanion = () => {
                             display: 'flex',
                             alignItems: 'center',
                             padding: '0.8rem 1.2rem',
-                            gap: '1rem',
+                            gap: '0.8rem',
                             borderRadius: '20px',
-                            background: 'rgba(255,255,255,0.15)',
+                            background: isVoiceActive ? 'rgba(15, 23, 42, 0.75)' : 'rgba(255,255,255,0.15)',
                             backdropFilter: 'blur(30px)',
-                            border: '1px solid rgba(255,255,255,0.2)'
+                            border: isVoiceActive ? '1px solid rgba(59, 130, 246, 0.6)' : '1px solid rgba(255,255,255,0.2)',
+                            boxShadow: isVoiceActive ? '0 0 30px rgba(59, 130, 246, 0.25)' : 'none',
+                            transition: 'all 0.3s ease',
+                            position: 'relative',
+                            minHeight: '60px'
                         }}
                     >
-                        <input
-                            type="text"
-                            value={inputText}
-                            onChange={(e) => setInputText(e.target.value)}
-                            placeholder="Type a message to your AI wellness partner..."
+                        {/* MICROPHONE BUTTON */}
+                        <button
+                            type="button"
+                            onClick={toggleVoiceMode}
+                            title={isVoiceActive ? 'Stop Voice Conversation' : 'Speak with Aurexia AI'}
                             style={{
-                                flex: 1,
-                                background: 'transparent',
-                                border: 'none',
+                                background: isVoiceActive 
+                                    ? 'linear-gradient(135deg, #ef4444, #ec4899)' 
+                                    : 'rgba(255,255,255,0.12)',
+                                border: isVoiceActive ? '1px solid rgba(255,255,255,0.4)' : '1px solid rgba(255,255,255,0.2)',
+                                width: '46px',
+                                height: '46px',
+                                borderRadius: '15px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
                                 color: 'white',
-                                fontSize: '1.1rem',
-                                padding: '0.5rem',
-                                outline: 'none'
+                                transition: 'all 0.3s ease',
+                                flexShrink: 0,
+                                animation: isVoiceActive ? 'micPulse 2s infinite' : 'none'
                             }}
-                        />
+                            onMouseEnter={(e) => {
+                                if (!isVoiceActive) e.currentTarget.style.background = 'rgba(255,255,255,0.25)';
+                            }}
+                            onMouseLeave={(e) => {
+                                if (!isVoiceActive) e.currentTarget.style.background = 'rgba(255,255,255,0.12)';
+                            }}
+                        >
+                            {isVoiceActive ? (
+                                // Active Mic / Stop Icon
+                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                    <line x1="12" y1="19" x2="12" y2="22"></line>
+                                </svg>
+                            ) : (
+                                // Idle Microphone Icon
+                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                                </svg>
+                            )}
+                        </button>
+
+                        {/* INPUT FIELD OR REAL-TIME HORIZONTAL VIBRATING DOTTED LINES VISUALIZER */}
+                        {isVoiceActive ? (
+                            <div style={{
+                                flex: 1,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                padding: '0.2rem 1rem',
+                                gap: '6px',
+                                overflow: 'hidden'
+                            }}>
+                                {/* Vibrating Dotted Lines Container */}
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '7px',
+                                    width: '100%',
+                                    height: '40px'
+                                }}>
+                                    {audioData.map((heightVal, idx) => (
+                                        <div
+                                            key={idx}
+                                            className={`dot-vibe-bar ${voiceState === 'speaking' ? 'speaking' : (voiceState === 'thinking' ? 'thinking' : '')}`}
+                                            style={{
+                                                height: `${voiceState === 'listening' ? heightVal : (voiceState === 'thinking' ? 16 : (voiceState === 'speaking' ? 22 : 8))}px`,
+                                                opacity: voiceState === 'listening' ? Math.max(0.4, heightVal / 38) : 0.8,
+                                                animation: voiceState === 'thinking' ? `wavePulse 1s infinite ${idx * 0.05}s` : (voiceState === 'speaking' ? `wavePulse 1.2s infinite ${idx * 0.04}s` : 'none')
+                                            }}
+                                        />
+                                    ))}
+                                </div>
+
+                                {/* Status & Live Transcript display */}
+                                <div style={{
+                                    fontSize: '0.85rem',
+                                    color: 'rgba(255, 255, 255, 0.85)',
+                                    fontWeight: '500',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    maxWidth: '90%',
+                                    textAlign: 'center'
+                                }}>
+                                    {voiceState === 'listening' && (
+                                        <span style={{ color: '#60a5fa' }}>
+                                            🎙️ {liveTranscript ? `"${liveTranscript}"` : 'Listening... speak to Aurexia AI'}
+                                        </span>
+                                    )}
+                                    {voiceState === 'thinking' && (
+                                        <span style={{ color: '#f59e0b' }}>
+                                            🧠 DeepSeek AI is thinking...
+                                        </span>
+                                    )}
+                                    {voiceState === 'speaking' && (
+                                        <span style={{ color: '#34d399' }}>
+                                            🔊 Aurexia AI is speaking...
+                                        </span>
+                                    )}
+                                    {voiceState === 'waiting' && (
+                                        <span style={{ color: '#93c5fd' }}>
+                                            💬 Waiting for your reply...
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <input
+                                type="text"
+                                value={inputText}
+                                onChange={(e) => setInputText(e.target.value)}
+                                placeholder="Type a message or click the 🎙️ mic to speak..."
+                                style={{
+                                    flex: 1,
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'white',
+                                    fontSize: '1.1rem',
+                                    padding: '0.5rem',
+                                    outline: 'none'
+                                }}
+                            />
+                        )}
+
+                        {/* SEND BUTTON */}
                         <button
                             type="submit"
                             style={{
@@ -671,7 +1192,8 @@ const AICompanion = () => {
                                 cursor: 'pointer',
                                 color: 'white',
                                 transition: 'all 0.3s ease',
-                                boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)'
+                                boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)',
+                                flexShrink: 0
                             }}
                             onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1) rotate(5deg)'}
                             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1) rotate(0deg)'}
@@ -682,6 +1204,7 @@ const AICompanion = () => {
                             </svg>
                         </button>
                     </form>
+
                     <p style={{ textAlign: 'center', fontSize: '0.75rem', marginTop: '1rem', opacity: 0.4 }}>
                         Aurexia AI is designed for support and does not replace medical advice.
                     </p>
@@ -692,3 +1215,4 @@ const AICompanion = () => {
 };
 
 export default AICompanion;
+

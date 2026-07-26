@@ -14,6 +14,7 @@ const LoginPage = () => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
     const { t } = useLanguage();
 
@@ -38,40 +39,61 @@ const LoginPage = () => {
 
     const handleLogin = async (e) => {
         e.preventDefault();
+        setError('');
+        setLoading(true);
         
         // Check for banned users first
         const bannedUsers = JSON.parse(localStorage.getItem('aurexia_banned_users') || '[]');
         const bannedUser = bannedUsers.find(u => u.email === email);
         if (bannedUser) {
             setError(`${t('bannedAccount')}: ${bannedUser.reason}`);
+            setLoading(false);
             return;
         }
 
         try {
+            // 1. Authenticate with Firebase Authentication
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
-            // Fetch user info from Firestore by checking all collections
+            // 2. Fetch user info from Firestore safely
             const collections = ['users', 'counsellors', 'tutors', 'admins'];
             let userDocSnap = null;
 
-            for (const col of collections) {
-                const docRef = doc(db, col, user.uid);
-                const snap = await getDoc(docRef);
-                if (snap.exists()) {
-                    userDocSnap = snap;
-                    break;
+            try {
+                for (const col of collections) {
+                    const docRef = doc(db, col, user.uid);
+                    const snap = await getDoc(docRef);
+                    if (snap.exists()) {
+                        userDocSnap = snap;
+                        break;
+                    }
                 }
+            } catch (dbErr) {
+                console.warn('Firestore read error during login:', dbErr);
             }
 
-            let userData = { email, role: 'public', loginCount: 1, uid: user.uid };
+            // 3. Match with local cache or build default user payload
+            const localUsers = JSON.parse(localStorage.getItem('users')) || [];
+            const localUser = localUsers.find(u => u.email === email || u.uid === user.uid);
+
+            let userData = {
+                name: user.displayName || localUser?.name || email.split('@')[0],
+                email: user.email,
+                role: localUser?.role || 'public',
+                loginCount: 1,
+                uid: user.uid
+            };
+
             if (userDocSnap) {
-                userData = { ...userDocSnap.data(), uid: user.uid };
+                userData = { ...userData, ...userDocSnap.data() };
                 userData.loginCount = (userData.loginCount || 0) + 1;
+            } else if (localUser) {
+                userData = { ...localUser, loginCount: (localUser.loginCount || 0) + 1 };
             }
 
             const users = JSON.parse(localStorage.getItem('users')) || [];
-            let userIndex = users.findIndex(u => u.email === email);
+            let userIndex = users.findIndex(u => u.email === email || u.uid === user.uid);
 
             if (userIndex !== -1) {
                 users[userIndex] = userData;
@@ -89,7 +111,20 @@ const LoginPage = () => {
                 default: navigate('/main');
             }
         } catch (err) {
-            setError('Invalid credentials or authentication failed');
+            console.error('Firebase Login Error:', err);
+            let errMsg = 'Invalid credentials or authentication failed';
+            if (err.code === 'auth/user-not-found') {
+                errMsg = 'No account found with this email. Please sign up first.';
+            } else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+                errMsg = 'Incorrect email or password. Please try again.';
+            } else if (err.code === 'auth/invalid-email') {
+                errMsg = 'Please enter a valid email address.';
+            } else if (err.code === 'auth/too-many-requests') {
+                errMsg = 'Too many failed login attempts. Please try again later.';
+            }
+            setError(errMsg);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -108,7 +143,7 @@ const LoginPage = () => {
                 </div>
 
                 <h2>{t('login')}</h2>
-                {error && <p className="error-message">{error}</p>}
+                {error && <p className="error-message" style={{ color: '#ef4444', backgroundColor: '#fee2e2', padding: '0.6rem 0.8rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem', textAlign: 'center' }}>{error}</p>}
 
                 <form onSubmit={handleLogin} className="auth-form">
                     <div className="form-group">
@@ -119,6 +154,7 @@ const LoginPage = () => {
                             onChange={(e) => setEmail(e.target.value)}
                             required
                             className="glass-input"
+                            disabled={loading}
                         />
                     </div>
                     <div className="form-group">
@@ -130,6 +166,7 @@ const LoginPage = () => {
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
                                 className="glass-input"
+                                disabled={loading}
                             />
                             <button
                                 type="button"
@@ -152,7 +189,9 @@ const LoginPage = () => {
                         </div>
                     </div>
 
-                    <button type="submit" className="cta-button full-width">{t('login')}</button>
+                    <button type="submit" className="cta-button full-width" disabled={loading}>
+                        {loading ? 'Signing In...' : t('login')}
+                    </button>
                 </form>
 
                 <p className="switch-auth">
