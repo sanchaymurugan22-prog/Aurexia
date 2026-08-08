@@ -93,6 +93,7 @@ const AICompanion = () => {
     const silenceTimerRef = useRef(null);
     const isVoiceActiveRef = useRef(false);
     const voiceStateRef = useRef('idle');
+    const latestTranscriptRef = useRef('');
 
     useEffect(() => {
         isVoiceActiveRef.current = isVoiceActive;
@@ -279,7 +280,7 @@ const AICompanion = () => {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = setTimeout(() => {
             if (isVoiceActiveRef.current && voiceStateRef.current === 'listening') {
-                const textToSubmit = currentCapturedText.trim() || liveTranscript.trim() || inputText.trim();
+                const textToSubmit = currentCapturedText.trim() || latestTranscriptRef.current.trim();
                 if (textToSubmit) {
                     console.log('1.5s silence pause after speech. Automatically sending to AI.');
                     if (recognitionRef.current) {
@@ -337,6 +338,7 @@ const AICompanion = () => {
             const activeText = normalizeSpeechTranscript(finalCaptured + ' ' + interim);
             setLiveTranscript(activeText);
             setInputText(activeText);
+            latestTranscriptRef.current = activeText;
             startSilenceTimer(activeText);
         };
 
@@ -358,12 +360,13 @@ const AICompanion = () => {
         recognition.onend = () => {
             clearTimeout(silenceTimerRef.current);
             stopAudioAnalysis();
-            const rawSubmit = finalCaptured.trim() || liveTranscript.trim() || inputText.trim();
+            const rawSubmit = finalCaptured.trim() || latestTranscriptRef.current.trim();
             const textToSubmit = normalizeSpeechTranscript(rawSubmit);
 
             if (textToSubmit && isVoiceActiveRef.current) {
                 setLiveTranscript('');
                 setInputText('');
+                latestTranscriptRef.current = '';
                 handleVoiceSendMessage(textToSubmit);
             } else if (isVoiceActiveRef.current) {
                 stopVoiceMode();
@@ -522,6 +525,7 @@ const AICompanion = () => {
         isVoiceActiveRef.current = false;
         setVoiceState('idle');
         setLiveTranscript('');
+        latestTranscriptRef.current = '';
         clearTimeout(silenceTimerRef.current);
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();

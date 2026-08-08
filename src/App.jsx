@@ -21,6 +21,8 @@ const BooksPage          = lazy(() => import('./components/BooksPage'));
 const ClassesPage        = lazy(() => import('./components/ClassesPage'));
 const SoundSanctuary     = lazy(() => import('./components/SoundSanctuary'));
 const MeditationTracks   = lazy(() => import('./components/MeditationTracks'));
+const NatureAmbience     = lazy(() => import('./components/NatureAmbience'));
+const SleepSupport       = lazy(() => import('./components/SleepSupport'));
 const AICompanion        = lazy(() => import('./components/AICompanion'));
 const TutorClasses       = lazy(() => import('./components/TutorClasses'));
 const PublicUsers        = lazy(() => import('./components/PublicUsers'));
@@ -68,6 +70,8 @@ function App() {
           <Route path="/books"               element={<BooksPage />} />
           <Route path="/sound-sanctuary"     element={<SoundSanctuary />} />
           <Route path="/meditation_tracks"   element={<MeditationTracks />} />
+          <Route path="/nature_ambience"     element={<NatureAmbience />} />
+          <Route path="/sleep_support"       element={<SleepSupport />} />
           <Route path="/classes"             element={<ClassesPage />} />
           <Route path="/ai-companion"        element={<AICompanion />} />
           <Route path="/tutor-classes"       element={<TutorClasses />} />

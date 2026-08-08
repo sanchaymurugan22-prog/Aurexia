@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext.jsx';
-import '../App.css';
+import soundBg from '../assets/sound.jpeg';
 
 const cards = [
   {
@@ -12,10 +12,12 @@ const cards = [
   {
     title: 'Nature Ambience',
     text: 'Calming rain, forest, and ocean sounds to ground your senses.',
+    route: '/nature_ambience'
   },
   {
     title: 'Sleep Support',
     text: 'Gentle audio designed to help you drift off with peace and comfort.',
+    route: '/sleep_support'
   }
 ];
 
@@ -27,7 +29,7 @@ const SoundSanctuary = () => {
     <div style={{
       width: '100%',
       minHeight: '100vh',
-      backgroundImage: "url('/images.jpg')",
+      backgroundImage: `url(${soundBg})`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       backgroundRepeat: 'no-repeat',
